@@ -1,5 +1,13 @@
 # Einrichtung auf Raspbian/Debian (z. B. neben openHAB)
 
+> **⚠ Vor der Installation lesen:** Dieses Tool erfasst und speichert
+> dauerhaft, welches Gerät sich wann mit welchem Router verbindet (inkl.
+> Roaming-Verlauf) – das kann ein personenbezogenes Bewegungsprofil der
+> Nutzer dieses Netzwerks darstellen. Betrieb nur unter Beachtung
+> geltender Datenschutzvorschriften (insb. DSGVO) zulässig. Ausführliche
+> Erklärung: [`README.md`, Abschnitt „Datenschutz-Hinweis
+> (DSGVO)"](../README.md).
+
 Live-Karte aller Mesh-Router mit Roaming-Verfolgung, Ereignis-Log und
 Kanalauslastung – als eigener systemd-Dienst auf einem Raspberry Pi mit
 Raspbian/Debian (läuft problemlos neben openHAB auf demselben Gerät).

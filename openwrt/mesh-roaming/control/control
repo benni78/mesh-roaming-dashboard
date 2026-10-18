@@ -13,3 +13,10 @@ Description: Live-Karte fuer ein OpenWrt-Mesh-Netzwerk (usteer)
  Kanalauslastung je Router/Funkband. Reine Python-3-Standardbibliothek,
  pollt die Router per SSH. Konfiguration optional per UCI/LuCI
  (siehe luci-app-mesh-roaming) oder direkt per config.json.
+ .
+ WICHTIG: Dieser Dienst erfasst und speichert dauerhaft, welches Geraet
+ sich wann mit welchem Router verbindet (inkl. Roaming-Verlauf) - das
+ kann ein personenbezogenes Bewegungsprofil der Nutzer dieses Netzwerks
+ darstellen. Betrieb nur unter Beachtung geltender Datenschutzvorschriften
+ (insb. DSGVO) zulaessig - ausfuehrliche Erklaerung siehe README.md,
+ Abschnitt "Datenschutz-Hinweis (DSGVO)".

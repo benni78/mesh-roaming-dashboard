@@ -1,5 +1,13 @@
 # Einrichtung auf OpenWrt (direkt auf einem Mesh-Router)
 
+> **⚠ Vor der Installation lesen:** Dieses Tool erfasst und speichert
+> dauerhaft, welches Gerät sich wann mit welchem Router verbindet (inkl.
+> Roaming-Verlauf) – das kann ein personenbezogenes Bewegungsprofil der
+> Nutzer dieses Netzwerks darstellen. Betrieb nur unter Beachtung
+> geltender Datenschutzvorschriften (insb. DSGVO) zulässig. Ausführliche
+> Erklärung: [`README.md`, Abschnitt „Datenschutz-Hinweis
+> (DSGVO)"](../README.md).
+
 Dieselbe Live-Karte wie in der
 [Raspbian/Debian-Variante](deployment-raspbian-openhab.md), aber als
 OpenWrt-Paket: läuft direkt auf einem der Mesh-Router statt auf einem

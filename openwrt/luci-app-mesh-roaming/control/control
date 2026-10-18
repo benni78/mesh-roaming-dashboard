@@ -11,3 +11,10 @@ Description: LuCI-Oberflaeche fuer das Mesh Roaming Dashboard
  Volles Konfigurationsformular fuer das mesh-roaming-Paket: Grundeinstellungen,
  Router (anlegen/bearbeiten/entfernen) und SSID-Farben direkt in LuCI statt
  von Hand in config.json/UCI. Setzt das Paket "mesh-roaming" voraus.
+ .
+ WICHTIG: Das Paket "mesh-roaming" erfasst und speichert dauerhaft, welches
+ Geraet sich wann mit welchem Router verbindet - das kann ein
+ personenbezogenes Bewegungsprofil der Nutzer dieses Netzwerks darstellen.
+ Betrieb nur unter Beachtung geltender Datenschutzvorschriften (insb.
+ DSGVO) zulaessig - ausfuehrliche Erklaerung siehe README.md, Abschnitt
+ "Datenschutz-Hinweis (DSGVO)".
