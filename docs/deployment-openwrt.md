@@ -44,6 +44,13 @@ mehrere MB zusätzlich belegen – vorher mit `df` prüfen.
 
 ## 1. `.ipk`-Dateien bauen
 
+**Auf einem gewöhnlichen Linux-Rechner ausführen (eigener PC/Laptop, VM,
+WSL) – NICHT auf dem OpenWrt-Router selbst.** Der auf OpenWrt/BusyBox
+mitgelieferte `ar`-Befehl kann in der Regel nur Archive lesen/entpacken,
+nicht neu erstellen – ein `.ipk` lässt sich damit nicht bauen. `./build-ipk.sh`
+prüft das selbst und bricht mit einer klaren Fehlermeldung ab, statt mitten
+im Bauen mit einem kryptischen `tar`-/`ar`-Fehler zu scheitern.
+
 ```sh
 cd openwrt
 ./build-ipk.sh
