@@ -1,0 +1,13 @@
+Package: luci-app-mesh-roaming
+Version: 1.0-1
+Architecture: all
+Section: luci
+Category: LuCI
+Maintainer: Benni
+License: PolyForm-Noncommercial-1.0.0
+Source: https://github.com/<user>/mesh-roaming-dashboard
+Depends: mesh-roaming, luci-base, rpcd
+Description: LuCI-Oberflaeche fuer das Mesh Roaming Dashboard
+ Volles Konfigurationsformular fuer das mesh-roaming-Paket: Grundeinstellungen,
+ Router (anlegen/bearbeiten/entfernen) und SSID-Farben direkt in LuCI statt
+ von Hand in config.json/UCI. Setzt das Paket "mesh-roaming" voraus.

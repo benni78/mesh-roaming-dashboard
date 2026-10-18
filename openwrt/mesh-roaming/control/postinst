@@ -1,0 +1,9 @@
+#!/bin/sh
+# opkg postinst: Dienst aktivieren und (ausser im Image-Build, also wenn
+# IPKG_INSTROOT gesetzt ist) gleich starten.
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+/etc/init.d/mesh-roaming enable
+/etc/init.d/mesh-roaming start
+
+exit 0

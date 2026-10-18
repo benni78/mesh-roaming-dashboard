@@ -15,9 +15,12 @@ the web page stay the same for any mesh. See
 [`examples/config.example.json`](examples/config.example.json) for the
 format.
 
-This first release covers the Raspbian/Debian (openHAB-friendly) deployment.
-An OpenWrt-router-hosted variant (running directly on a mesh router instead
-of a separate Pi) is planned as a follow-up.
+Two deployment variants are available: Raspbian/Debian (openHAB-friendly,
+see above) and an OpenWrt-router-hosted variant that runs directly on a
+mesh router instead of a separate Pi, with an optional LuCI configuration
+page — see
+[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md) and the
+[`openwrt/`](openwrt) directory.
 
 The documentation below is in German, matching the project's origin; code
 comments are German throughout.
@@ -38,6 +41,11 @@ einem Raspberry Pi (z. B. neben openHAB, siehe
 oder direkt auf OpenWrt. Alles Netzwerkspezifische (Router, IPs, SSIDs,
 Kartenlayout, Schwellwerte) steckt in einer `config.json` – Dienst und
 Webseite bleiben für jedes Mesh identisch gleich.
+
+![Beispiel-Ansicht des Dashboards mit vier Routern, Clients, Roaming-Log und Kanalauslastung](docs/images/dashboard-beispiel.png)
+
+*Beispielansicht mit frei erfundenen Testdaten (Router, Clients und Werte
+aus `examples/config.example.json`) – keine echten Netzwerkdaten.*
 
 ## Funktionsumfang
 
@@ -67,9 +75,29 @@ Webseite bleiben für jedes Mesh identisch gleich.
   `config.json`.
 - `systemd/mesh-roaming.service` – systemd-Unit für den Dauerbetrieb auf
   Raspbian/Debian.
+- `openwrt/mesh-roaming/` – OpenWrt-Paketquelle (procd-Init-Skript, UCI-
+  Konfigurationsschema, UCI→JSON-Brücke `mesh-roaming-uci2json`) für den
+  Betrieb direkt auf einem Mesh-Router statt auf einem separaten Pi.
+- `openwrt/luci-app-mesh-roaming/` – optionales LuCI-Konfigurationsformular
+  für das OpenWrt-Paket (Grundeinstellungen, Router, SSID-Farben).
+- `openwrt/build-ipk.sh` – baut aus beiden Paketquellen installierbare
+  `.ipk`-Dateien (ohne OpenWrt-SDK).
 
 Voraussetzung auf den Routern: OpenWrt mit `usteer` und `hostapd`
 (Standard bei den meisten aktuellen Mesh-Setups).
+
+## Schnellstart (OpenWrt, direkt auf einem Mesh-Router)
+
+```sh
+cd openwrt
+./build-ipk.sh
+# -> openwrt/dist/mesh-roaming_<version>_all.ipk
+# -> openwrt/dist/luci-app-mesh-roaming_<version>_all.ipk   (optional, LuCI-Formular)
+```
+
+Danach per `scp`/`opkg install` auf den Router übertragen. Vollständige
+Anleitung (Konfiguration über LuCI oder UCI, SSH-Schlüssel, Deinstallation):
+[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md).
 
 ## Schnellstart (Raspbian/Debian, z. B. neben openHAB)
 
@@ -85,7 +113,16 @@ cp examples/config.example.json /tmp/config.json
 MESH_ROAMING_CONFIG=/tmp/config.json python3 src/mesh_roaming_pi.py
 ```
 
-Danach `http://localhost:8765/` im Browser öffnen.
+Danach im Browser öffnen: **http://localhost:8765/** (bzw. bei echtem
+Betrieb auf dem Pi: `http://<ip-oder-hostname-des-pi>:8765/` – der Port
+8765 lässt sich in der `config.json` unter `http.port` ändern).
+
+`openwrt/feed-makefiles/` enthält Vorlagen für eine mögliche spätere
+Veröffentlichung im offiziellen `openwrt/packages`-Feed. Das ist noch nicht
+umgesetzt – unter anderem, weil die aktuelle Lizenz (PolyForm Noncommercial,
+siehe unten) mit den Lizenzanforderungen des offiziellen Feeds vermutlich
+nicht vereinbar ist, da dieser auch in kommerziellen Firmware-Images
+mitverteilt wird.
 
 ## Lizenz
 

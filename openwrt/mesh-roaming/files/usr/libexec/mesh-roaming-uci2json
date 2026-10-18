@@ -1,0 +1,238 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+mesh-roaming-uci2json
+======================
+
+Uebersetzt die UCI-Konfiguration (/etc/config/mesh-roaming) in die JSON-
+Datei, die mesh_roaming_pi.py erwartet (siehe examples/config.example.json
+im Hauptprojekt fuer das Zielformat).
+
+Das Basis-Paket "mesh-roaming" funktioniert auch OHNE UCI, mit einer von
+Hand gepflegten config.json - dieses Skript ist nur der Brueckenbaustein
+fuer luci-app-mesh-roaming (UCI/LuCI-Formular statt JSON-Datei). Ist keine
+UCI-Konfiguration mit mindestens einer 'global'-Sektion vorhanden, tut das
+Skript nichts und beendet sich mit Exit-Code 2 - der Init-Dienst startet
+dann einfach mit der vorhandenen config.json weiter.
+
+Der UCI-Parser ist bewusst eigenstaendig (kein Aufruf von "uci"/"ubus"):
+die UCI-Dateisyntax ist (fuer unsere Zwecke) shell-kompatibel quotiert,
+daher reicht Pythons eingebautes shlex. Das macht das Skript auch ausserhalb
+von OpenWrt testbar.
+
+Aufruf:
+    mesh-roaming-uci2json [--uci-dir /etc/config] [--name mesh-roaming]
+                          [--out /etc/mesh-roaming/config.json]
+"""
+
+import argparse
+import json
+import os
+import shlex
+import sys
+
+
+def parse_uci_file(path):
+    """Liest eine UCI-Konfigurationsdatei und liefert eine Liste von
+    Sektionen: [{"type":..., "name":..., "options": {...}, "lists": {...}}]
+    in Dateireihenfolge. Unbekannte/fehlerhafte Zeilen werden übersprungen
+    statt das ganze Parsen abzubrechen - eine einzelne kaputte Zeile soll
+    nicht den gesamten Dienst lahmlegen.
+    """
+    sections = []
+    current = None
+    if not os.path.isfile(path):
+        return sections
+    with open(path, "r", encoding="utf-8") as f:
+        for raw_line in f:
+            try:
+                parts = shlex.split(raw_line, comments=True)
+            except ValueError:
+                continue
+            if not parts:
+                continue
+            kw = parts[0]
+            if kw == "config" and len(parts) >= 2:
+                current = {
+                    "type": parts[1],
+                    "name": parts[2] if len(parts) >= 3 else None,
+                    "options": {},
+                    "lists": {},
+                }
+                sections.append(current)
+            elif kw == "option" and current is not None and len(parts) >= 3:
+                current["options"][parts[1]] = parts[2]
+            elif kw == "list" and current is not None and len(parts) >= 3:
+                current["lists"].setdefault(parts[1], []).append(parts[2])
+    return sections
+
+
+def _bool(opts, key, default):
+    v = opts.get(key)
+    if v is None:
+        return default
+    return v not in ("0", "no", "off", "false", "")
+
+
+def _int(opts, key, default):
+    v = opts.get(key)
+    if v is None or v == "":
+        return default
+    try:
+        return int(v)
+    except ValueError:
+        return default
+
+
+def _float(opts, key, default):
+    v = opts.get(key)
+    if v is None or v == "":
+        return default
+    try:
+        return float(v)
+    except ValueError:
+        return default
+
+
+def _str(opts, key, default):
+    v = opts.get(key)
+    return default if v is None else v
+
+
+def build_config(sections):
+    globals_ = [s for s in sections if s["type"] == "global"]
+    if not globals_:
+        return None
+    g = globals_[0]["options"]
+    gl = globals_[0]["lists"]
+
+    ap_ifnames = gl.get("ap_ifname") or [
+        "phy0-ap0", "phy0-ap1", "phy0-ap2", "phy0-ap3",
+        "phy1-ap0", "phy1-ap1", "phy1-ap2", "phy1-ap3",
+    ]
+    reference_rings = [int(x) for x in gl.get("reference_ring_dbm", ["-55", "-70", "-90"])]
+    ssid_colors = gl.get("ssid_color") or [
+        "#5b8dd6", "#d6905b", "#7fbf6b", "#b06bbf", "#5bb0b0", "#c2b95a",
+    ]
+
+    ssid_colors_by_name = {}
+    for s in sections:
+        if s["type"] != "ssid_color":
+            continue
+        ssid = s["options"].get("ssid")
+        color = s["options"].get("color")
+        if ssid and color:
+            ssid_colors_by_name[ssid] = color
+
+    routers = []
+    for s in sections:
+        if s["type"] != "router":
+            continue
+        o = s["options"]
+        rid = _str(o, "id", s.get("name") or "")
+        if not rid:
+            continue
+        entry = {
+            "id": rid,
+            "ip": _str(o, "ip", ""),
+            "name": _str(o, "name", rid),
+            "room": _str(o, "room", ""),
+            "map_x": _int(o, "map_x", 0),
+            "map_y": _int(o, "map_y", 0),
+            "mgmt_ips": s["lists"].get("mgmt_ip", []),
+        }
+        if _bool(o, "local", False):
+            entry["local"] = True
+        if _bool(o, "disabled", False):
+            continue
+        routers.append(entry)
+
+    mqtt_broker = _str(g, "mqtt_broker", "") or None
+
+    return {
+        "network": {"label": _str(g, "label", "Mesh-Netzwerk")},
+        "ssh": {
+            "user": _str(g, "ssh_user", "root"),
+            "key_path": _str(g, "ssh_key_path", "/etc/mesh-roaming/id_ed25519"),
+            "connect_timeout_sec": _int(g, "ssh_connect_timeout_sec", 5),
+            "command_timeout_sec": _int(g, "ssh_command_timeout_sec", 8),
+            "control_master": _bool(g, "ssh_control_master", True),
+            "control_persist": _str(g, "ssh_control_persist", "60s"),
+        },
+        "polling": {"interval_sec": _int(g, "interval_sec", 1)},
+        "http": {
+            "bind": _str(g, "bind", "0.0.0.0"),
+            "port": _int(g, "port", 8765),
+        },
+        "storage": {
+            "db_path": _str(g, "db_path", "/etc/mesh-roaming/state.db"),
+            "runtime_dir": _str(g, "runtime_dir", "/etc/mesh-roaming/run"),
+        },
+        "html_path": _str(g, "html_path", "") or None,
+        "ap_ifnames": ap_ifnames,
+        "roaming": {
+            "reachable_signal_threshold_dbm": _int(g, "reachable_signal_threshold_dbm", -75),
+            "shift_amount_min": _float(g, "shift_amount_min", 0.15),
+            "shift_amount_max": _float(g, "shift_amount_max", 0.70),
+            "log_max_entries": _int(g, "log_max_entries", 200),
+        },
+        "signal": {
+            "min_dbm": _int(g, "signal_min_dbm", -90),
+            "max_dbm": _int(g, "signal_max_dbm", -30),
+            "reference_rings_dbm": reference_rings,
+        },
+        "map": {
+            "viewbox_width": _int(g, "map_viewbox_width", 900),
+            "viewbox_height": _int(g, "map_viewbox_height", 600),
+            "radius_inner": _int(g, "map_radius_inner", 16),
+            "radius_outer": _int(g, "map_radius_outer", 100),
+            "ssid_colors": ssid_colors,
+            "ssid_colors_by_name": ssid_colors_by_name,
+        },
+        "channel_util": {
+            "interval_sec": _int(g, "util_interval_sec", 10),
+            "colors": {
+                "own": _str(g, "util_color_own", "#3987e5"),
+                "foreign": _str(g, "util_color_foreign", "#e66767"),
+                "rest": _str(g, "util_color_rest", "#2f3d46"),
+            },
+        },
+        "routers": routers,
+        "mqtt": {
+            "broker": mqtt_broker,
+            "base_topic": _str(g, "mqtt_base_topic", "mesh-roaming"),
+            "publish_interval_sec": _int(g, "mqtt_publish_interval_sec", 10),
+        },
+    }
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--uci-dir", default="/etc/config")
+    ap.add_argument("--name", default="mesh-roaming")
+    ap.add_argument("--out", default="/etc/mesh-roaming/config.json")
+    args = ap.parse_args(argv)
+
+    uci_path = os.path.join(args.uci_dir, args.name)
+    sections = parse_uci_file(uci_path)
+    cfg = build_config(sections)
+    if cfg is None:
+        sys.stderr.write(
+            "mesh-roaming-uci2json: keine 'config global' Sektion in %s gefunden - "
+            "ueberspringe (vorhandene config.json bleibt unveraendert)\n" % uci_path
+        )
+        return 2
+
+    out_dir = os.path.dirname(args.out)
+    if out_dir and not os.path.isdir(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+    tmp_path = args.out + ".tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2, ensure_ascii=False, sort_keys=False)
+        f.write("\n")
+    os.replace(tmp_path, args.out)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

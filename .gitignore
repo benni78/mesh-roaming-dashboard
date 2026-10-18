@@ -5,3 +5,7 @@ config.json
 id_ed25519
 id_ed25519.pub
 known_hosts
+
+# Gebaute .ipk-Dateien sind Build-Artefakte, kein Quellcode - mit
+# openwrt/build-ipk.sh selbst erzeugen.
+openwrt/dist/

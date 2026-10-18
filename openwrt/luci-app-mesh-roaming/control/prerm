@@ -1,0 +1,8 @@
+#!/bin/sh
+# opkg prerm: LuCI-Cache leeren, damit das Menue nach der Deinstallation
+# nicht als toter Link stehen bleibt.
+[ -n "$IPKG_INSTROOT" ] && exit 0
+
+rm -f /tmp/luci-indexcache /tmp/luci-modulecache/* 2>/dev/null
+
+exit 0

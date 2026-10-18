@@ -1,0 +1,45 @@
+{
+	"admin/services/mesh-roaming": {
+		"title": "Mesh Roaming Dashboard",
+		"order": 50,
+		"action": {
+			"type": "firstchild"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-roaming" ]
+		}
+	},
+	"admin/services/mesh-roaming/global": {
+		"title": "Grundeinstellungen",
+		"order": 10,
+		"action": {
+			"type": "view",
+			"path": "mesh-roaming/global"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-roaming" ]
+		}
+	},
+	"admin/services/mesh-roaming/routers": {
+		"title": "Router",
+		"order": 20,
+		"action": {
+			"type": "view",
+			"path": "mesh-roaming/routers"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-roaming" ]
+		}
+	},
+	"admin/services/mesh-roaming/ssids": {
+		"title": "SSID-Farben",
+		"order": 30,
+		"action": {
+			"type": "view",
+			"path": "mesh-roaming/ssids"
+		},
+		"depends": {
+			"acl": [ "luci-app-mesh-roaming" ]
+		}
+	}
+}

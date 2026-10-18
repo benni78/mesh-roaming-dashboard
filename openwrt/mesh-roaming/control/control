@@ -1,0 +1,15 @@
+Package: mesh-roaming
+Version: 1.0-1
+Architecture: all
+Section: net
+Category: Network
+Maintainer: Benni
+License: PolyForm-Noncommercial-1.0.0
+Source: https://github.com/<user>/mesh-roaming-dashboard
+Depends: python3, python3-sqlite3, openssh-client-utils
+Description: Live-Karte fuer ein OpenWrt-Mesh-Netzwerk (usteer)
+ Live-Dienst fuer ein OpenWrt-Mesh-Netzwerk (usteer): Grundriss-Karte mit
+ Roaming-Pfeilen, Signalstaerke-Radar, zentralem Ereignis-Log (SQLite) und
+ Kanalauslastung je Router/Funkband. Reine Python-3-Standardbibliothek,
+ pollt die Router per SSH. Konfiguration optional per UCI/LuCI
+ (siehe luci-app-mesh-roaming) oder direkt per config.json.

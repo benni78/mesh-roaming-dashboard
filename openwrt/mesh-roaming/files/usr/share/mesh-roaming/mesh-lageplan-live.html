@@ -1,0 +1,1050 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mesh-Lageplan · Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --bg:#0d1317;
+    --bg-raised:#121a1f;
+    --panel:#161f25;
+    --panel-border:#26333b;
+    --wall:#2f3d46;
+    --floor-fill:#111a1f;
+    --floor-hatch:rgba(255,255,255,0.02);
+    --text-primary:#e9f1f3;
+    --text-secondary:#9db0b8;
+    --text-muted:#657077;
+    --accent:#3fc1c0;
+    --accent-soft:rgba(63,193,192,0.14);
+    --amber:#e8a33d;
+    --amber-soft:rgba(232,163,61,0.16);
+    --good:#5cc17e;
+    --warn:#e8a33d;
+    --critical:#e2685c;
+    --critical-soft:rgba(226,104,92,0.16);
+    /* Kanalauslastung - Defaults, werden von /config.json (channel_util.colors)
+       ueberschrieben; siehe applyConfig(). own/foreign sind laut Datenviz-Skill
+       validierte kategoriale Farben (CVD-getrennt), rest ist bewusst neutral/unbunt
+       (Rest-Kapazitaet, keine dritte Kategorie). */
+    --chanutil-own:#3987e5;
+    --chanutil-foreign:#e66767;
+    --chanutil-rest:#2f3d46;
+    --font-display:'IBM Plex Sans Condensed',system-ui,sans-serif;
+    --font-body:'IBM Plex Sans',system-ui,sans-serif;
+    --font-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text-primary);
+    font-family:var(--font-body);
+    padding:24px 16px 48px;
+  }
+  .wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:20px;}
+
+  h1,h2,h3{font-family:var(--font-display);font-weight:700;margin:0;text-wrap:balance;}
+
+  header.top{
+    display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:16px;
+  }
+  header.top .titles h1{font-size:26px;letter-spacing:0.2px;}
+  header.top .titles .network-label{margin:2px 0 0;color:var(--accent);font-size:13px;font-family:var(--font-mono);letter-spacing:0.3px;}
+  header.top .titles p{margin:4px 0 0;color:var(--text-secondary);font-size:14px;max-width:60ch;}
+  .status-cluster{display:flex;flex-direction:column;align-items:flex-end;gap:6px;font-size:12px;color:var(--text-muted);}
+  .status-cluster .updated{font-family:var(--font-mono);color:var(--text-secondary);}
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:3px 9px;border-radius:99px;font-size:11px;font-weight:600;
+    letter-spacing:0.3px;text-transform:uppercase;
+  }
+  .badge.sample{background:var(--amber-soft);color:var(--amber);border:1px solid rgba(232,163,61,0.35);}
+  .badge.live{background:var(--accent-soft);color:var(--accent);border:1px solid rgba(63,193,192,0.35);}
+  .badge.offline{background:var(--critical-soft);color:var(--critical);border:1px solid rgba(226,104,92,0.35);}
+  .badge .dot{width:6px;height:6px;border-radius:50%;background:currentColor;}
+  .badge.live .dot{animation:pulseDot 1.6s ease-in-out infinite;}
+  @keyframes pulseDot{0%,100%{opacity:1;}50%{opacity:0.25;}}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:20px;align-items:start;}
+  @media (max-width:900px){.layout{grid-template-columns:1fr;}}
+
+  .panel{background:var(--panel);border:1px solid var(--panel-border);border-radius:12px;padding:18px;}
+  .panel h2{font-size:14px;text-transform:uppercase;letter-spacing:0.6px;color:var(--text-secondary);margin-bottom:4px;}
+  .panel .hint{margin:0 0 14px;color:var(--text-muted);font-size:12px;line-height:1.5;}
+
+  .floorplan-outer{position:relative;}
+  .map-wrap{position:relative;}
+  .mapsvg{width:100%;height:auto;display:block;}
+
+  .host-dot{cursor:default;}
+  .host-title{font-family:var(--font-display);font-weight:700;font-size:13px;fill:var(--text-primary);}
+  .host-title.err{fill:var(--critical);}
+  .host-sub{font-family:var(--font-mono);font-size:9px;fill:var(--text-muted);}
+  .host-sub.err{fill:var(--critical);}
+  .client-dot{cursor:pointer;}
+  .client-label{font-family:var(--font-mono);font-size:9.5px;fill:var(--text-secondary);cursor:pointer;}
+  .host-pulse{fill:none;stroke:var(--amber);stroke-width:3;opacity:0.9;transition:r 900ms ease, opacity 900ms ease;}
+
+  .sig-dot{display:inline-block;width:9px;height:9px;border-radius:50%;flex:none;}
+  .sig-dot.hollow{background:var(--panel);border:2px solid var(--text-muted);box-sizing:border-box;}
+  .legend-swatch{display:inline-block;width:18px;height:0;border-top:2px dashed var(--accent);flex:none;}
+  .legend-swatch.solid{border-top-style:solid;border-top-width:2.5px;}
+
+  .legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:14px;padding-top:12px;border-top:1px solid var(--panel-border);}
+  .legend-item{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--text-secondary);}
+
+  .detail-panel{
+    position:absolute;top:10px;right:10px;max-width:250px;width:calc(100% - 20px);
+    background:var(--bg-raised);border:1px solid var(--panel-border);border-radius:10px;
+    padding:12px 14px;font-size:12px;color:var(--text-secondary);box-shadow:0 6px 24px rgba(0,0,0,0.4);
+    z-index:5;
+  }
+  .detail-close{
+    position:absolute;top:4px;right:6px;background:none;border:none;color:var(--text-muted);
+    font-size:17px;line-height:1;padding:3px 7px;cursor:pointer;
+  }
+  .detail-close:hover{color:var(--text-primary);filter:none;}
+  .detail-name{font-family:var(--font-display);font-weight:700;font-size:14px;color:var(--text-primary);margin-bottom:2px;padding-right:20px;}
+  .detail-mac{font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-bottom:8px;}
+  .detail-line{margin-bottom:6px;line-height:1.4;}
+  .detail-muted{color:var(--text-muted);font-style:italic;}
+  .detail-sub-inline{color:var(--text-muted);font-size:10.5px;}
+  .detail-sub{font-family:var(--font-mono);font-size:10px;letter-spacing:0.4px;text-transform:uppercase;color:var(--text-muted);margin:8px 0 4px;}
+  .detail-sighting{display:flex;justify-content:space-between;gap:6px;font-family:var(--font-mono);font-size:11px;padding:2px 0;}
+  .detail-sig{color:var(--text-muted);}
+  .detail-flag{font-size:9.5px;text-transform:uppercase;letter-spacing:0.3px;padding:1px 5px;border-radius:99px;flex:none;}
+  .detail-flag.ok{background:rgba(63,193,192,0.16);color:var(--accent);}
+  .detail-flag.low{background:rgba(101,112,119,0.18);color:var(--text-muted);}
+  .detail-log-entry{font-size:11px;padding:3px 0;border-top:1px solid var(--panel-border);color:var(--text-secondary);}
+  .detail-rename{margin-top:10px;width:100%;}
+
+  button{
+    font-family:var(--font-display);font-weight:600;font-size:13px;letter-spacing:0.2px;
+    background:var(--accent);color:#08211f;border:none;border-radius:7px;
+    padding:9px 16px;cursor:pointer;
+  }
+  button:hover{filter:brightness(1.08);}
+  button:focus-visible{outline:2px solid var(--text-primary);outline-offset:2px;}
+
+  .roam-path{fill:none;stroke:var(--amber);stroke-width:2;opacity:0.9;transition:stroke-dashoffset 900ms ease, opacity 700ms ease 2600ms;}
+
+  .sidebar{display:flex;flex-direction:column;gap:16px;}
+  .summary-row{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--text-secondary);padding:6px 0;border-bottom:1px solid var(--panel-border);}
+  .summary-row:last-child{border-bottom:none;}
+  .summary-row .n{font-family:var(--font-mono);color:var(--text-primary);font-variant-numeric:tabular-nums;font-size:14px;}
+  /* Zweizeiliges Router-Label (Name als Ueberschrift, Ort als Untertitel) -
+     wiederverwendet in der Uebersicht UND im "Auch sichtbar an"-Abschnitt
+     des Detail-Panels (Nutzer-Vorgabe: Name ist ueberall die Ueberschrift). */
+  .label-main{display:block;}
+  .label-sub{display:block;font-size:10px;color:var(--text-muted);margin-top:1px;}
+  .summary-sub{font-family:var(--font-mono);font-size:10.5px;letter-spacing:0.4px;text-transform:uppercase;color:var(--text-muted);margin:12px 0 2px;}
+
+  .log-list{display:flex;flex-direction:column;gap:2px;max-height:420px;overflow-y:auto;}
+  .log-entry{padding:9px 2px;border-bottom:1px solid var(--panel-border);font-size:12.5px;}
+  .log-entry:last-child{border-bottom:none;}
+  .log-time{font-family:var(--font-mono);color:var(--text-muted);font-size:10.5px;}
+  .log-line{display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap;}
+  .log-mac{font-family:var(--font-mono);color:var(--text-primary);}
+  .log-route{color:var(--text-secondary);font-family:var(--font-mono);font-size:11.5px;}
+  .log-kind{font-size:10px;text-transform:uppercase;letter-spacing:0.4px;padding:1px 6px;border-radius:99px;flex:none;}
+  .log-kind.roam{background:var(--amber-soft);color:var(--amber);}
+  .log-kind.connect{background:rgba(92,193,126,0.14);color:var(--good);}
+  .log-kind.disconnect{background:rgba(101,112,119,0.18);color:var(--text-muted);}
+  .log-empty{color:var(--text-muted);font-size:12.5px;font-style:italic;}
+
+  @media (prefers-reduced-motion:reduce){
+    .roam-path, .host-pulse{transition:none !important;}
+    .badge.live .dot{animation:none !important;}
+  }
+
+  /* -- Kanalauslastung --------------------------------------------- */
+  .util-router{margin-bottom:16px;}
+  .util-router:last-child{margin-bottom:0;}
+  .util-router-name{font-family:var(--font-display);font-weight:600;font-size:12.5px;color:var(--text-primary);}
+  .util-router-room{font-size:10px;color:var(--text-muted);margin:0 0 6px;}
+  .util-band{margin-bottom:9px;}
+  .util-band:last-child{margin-bottom:0;}
+  .util-band-head{display:flex;justify-content:space-between;align-items:baseline;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-bottom:3px;}
+  .util-bar{
+    display:flex;align-items:stretch;height:18px;border-radius:4px;overflow:hidden;
+    background:var(--chanutil-rest);gap:2px;
+  }
+  .util-seg{height:100%;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+  .util-seg:first-child{border-top-left-radius:4px;border-bottom-left-radius:4px;}
+  .util-seg:last-child{border-top-right-radius:4px;border-bottom-right-radius:4px;}
+  .util-seg.own{background:var(--chanutil-own);}
+  .util-seg.foreign{background:var(--chanutil-foreign);}
+  .util-seg.rest{background:var(--chanutil-rest);}
+  .util-seg-label{font-family:var(--font-mono);font-size:9.5px;font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 4px;}
+  .util-seg.own .util-seg-label{color:#06172e;}
+  .util-seg.foreign .util-seg-label{color:#300606;}
+  .util-unavailable{font-size:11px;color:var(--text-muted);font-style:italic;padding:2px 0;}
+  .util-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--panel-border);}
+  .util-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);}
+  .util-legend-swatch{display:inline-block;width:11px;height:11px;border-radius:3px;flex:none;}
+  .util-legend-swatch.own{background:var(--chanutil-own);}
+  .util-legend-swatch.foreign{background:var(--chanutil-foreign);}
+  .util-legend-swatch.rest{background:var(--chanutil-rest);}
+  .util-empty{color:var(--text-muted);font-size:12.5px;font-style:italic;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div class="titles">
+      <h1>Mesh-Lageplan · Live</h1>
+      <p class="network-label" id="networkLabel" hidden></p>
+    </div>
+    <div class="status-cluster">
+      <span class="badge sample" id="dataBadge"><span class="dot"></span>Verbinde…</span>
+      <span class="updated" id="updatedAt">–</span>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="panel floorplan-outer">
+      <h2>Grundriss</h2>
+      <p class="hint" id="mapHint">Farbe = SSID · Abstand vom Router = Signalstärke (außen = schwächer) · durchgehend = aktueller Link · gestrichelt = auch an anderer Station empfangbar · Klick auf einen Client = Details.</p>
+      <div class="map-wrap" id="mapWrap">
+        <svg class="mapsvg" id="mapSvg" viewBox="0 0 900 600" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+              <path d="M0,0 L6,3 L0,6 Z" fill="#e8a33d"></path>
+            </marker>
+          </defs>
+          <g id="staticMapGroup"></g>
+          <g id="roamOverlay"></g>
+        </svg>
+        <div class="detail-panel" id="detailPanel" hidden>
+          <button type="button" class="detail-close" id="detailCloseBtn" aria-label="Schließen">×</button>
+          <div id="detailBody"></div>
+        </div>
+      </div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-swatch solid"></span>aktueller Link</span>
+        <span class="legend-item"><span class="legend-swatch"></span>auch empfangbar</span>
+        <span class="legend-item"><span class="sig-dot" style="background:var(--text-secondary)"></span>5 GHz (voller Punkt)</span>
+        <span class="legend-item"><span class="sig-dot hollow"></span>2,4 GHz (Ring)</span>
+        <span id="ssidLegend" style="display:contents"></span>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>Übersicht</h2>
+        <div id="summaryList"></div>
+      </section>
+      <section class="panel">
+        <h2>Roaming-Ereignisse</h2>
+        <div class="log-list" id="logList"></div>
+      </section>
+      <section class="panel">
+        <h2>Kanalauslastung</h2>
+        <p class="hint" id="utilHint">Je Gerät und Funkband, neu berechnet als Differenz über die letzten Sekunden (nicht seit Geräte-Start).</p>
+        <div id="utilList"></div>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // Alles Netzwerkspezifische (Router, Kartenpositionen, mgmt-IP-Zuordnung,
+  // Schwellwerte, Kartenlayout/-farben) kommt aus /config.json - siehe
+  // applyConfig() unten. Diese Datei ist bewusst ohne fest einprogrammierte
+  // Router/IPs, damit derselbe Code fuer ein anderes Mesh/Netzwerk
+  // wiederverwendbar ist (nur die Konfiguration des Dienstes aendert sich).
+
+  var ROUTERS = [];           // [{id, room, name, ip}, ...] - aus /config.json
+  var ROUTER_BY_ID = {};
+  var HOST_POS = {};          // routerId -> {x,y} - aus /config.json (map_x/map_y)
+  var MGMT_IP_TO_ROUTER = {}; // mgmt-IP -> routerId - aus /config.json (mgmt_ips je Router)
+  var NODE_KEY_RE = /^(\d+\.\d+\.\d+\.\d+)#hostapd\.(.+)$/;
+
+  var REACHABLE_SIGNAL_THRESHOLD = -75;
+  var SHIFT_MIN = 0.15, SHIFT_MAX = 0.70;
+  var SIGNAL_MIN_DBM = -90, SIGNAL_MAX_DBM = -30;
+  var REFERENCE_RINGS_DBM = [-55, -70, -90];
+  var R_INNER = 16, R_OUTER = 100;
+  var SSID_HUES = ['#5b8dd6','#d6905b','#7fbf6b','#b06bbf','#5bb0b0','#c2b95a'];
+  var SSID_COLOR_BY_NAME = {}; // ssid (lowercase) -> feste Farbe, aus /config.json (map.ssid_colors_by_name)
+
+  // Kanalauslastung - Intervall nur fuer den Hinweistext, die Farben
+  // werden als CSS-Variablen gesetzt (s. applyConfig) statt in JS-Variablen
+  // gehalten, damit dieselben Werte fuer Balken UND Legende gelten.
+  var UTIL_INTERVAL_SEC = 10;
+
+  var reduceMotion = false;
+  try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+
+  var MAC_RE = /^[0-9a-f]{2}(:[0-9a-f]{2}){5}$/i;
+
+  // routerData = { ssids: { "<ssid>": { clients: { "<mac>": {signal, band} } } }, error? }
+  // -> { bySsid: {ssid:[{mac,signal,band}]}, flat: {mac:{signal,band,ssid}} }
+  function extractRouterClients(routerData){
+    var bySsid = {}, flat = {};
+    if (!routerData || typeof routerData !== 'object' || routerData.error || !routerData.ssids) {
+      return { bySsid: bySsid, flat: flat };
+    }
+    Object.keys(routerData.ssids).forEach(function(ssidName){
+      var bucket = routerData.ssids[ssidName];
+      if (!bucket || !bucket.clients) return;
+      var list = [];
+      Object.keys(bucket.clients).forEach(function(mac){
+        if (!MAC_RE.test(mac)) return;
+        var c = bucket.clients[mac] || {};
+        var lower = mac.toLowerCase();
+        var entry = { mac: lower, signal: (typeof c.signal === 'number' ? c.signal : null), band: c.band || null, ssid: ssidName };
+        list.push(entry);
+        flat[lower] = entry;
+      });
+      if (list.length) bySsid[ssidName] = list;
+    });
+    return { bySsid: bySsid, flat: flat };
+  }
+
+  // usteer_raw je Router = { "<mac>": { "<mgmt-ip>#hostapd.<ifname>": {connected, signal}, ... }, ... }
+  // Wird ueber alle Router gemerged, Node-Key wird per MGMT_IP_TO_ROUTER auf eine Router-ID abgebildet.
+  // Ergebnis: mac -> { routerId: {connected, signal} } - Basis fuer "zwischen Stationen".
+  function extractMultiNode(routersMap){
+    var result = {};
+    if (!routersMap) return result;
+    Object.keys(routersMap).forEach(function(rid){
+      var rd = routersMap[rid];
+      if (!rd || !rd.usteer_raw || typeof rd.usteer_raw !== 'object') return;
+      Object.keys(rd.usteer_raw).forEach(function(macRaw){
+        if (!MAC_RE.test(macRaw)) return;
+        var mac = macRaw.toLowerCase();
+        var nodeMap = rd.usteer_raw[macRaw];
+        if (!nodeMap || typeof nodeMap !== 'object') return;
+        Object.keys(nodeMap).forEach(function(nodeKey){
+          var m = NODE_KEY_RE.exec(nodeKey);
+          if (!m) return;
+          var routerId = MGMT_IP_TO_ROUTER[m[1]];
+          if (!routerId) return; // unbekannte mgmt-IP - lieber ignorieren als raten
+          var info = nodeMap[nodeKey] || {};
+          var sig = (typeof info.signal === 'number') ? info.signal : null;
+          var conn = !!info.connected;
+          if (!result[mac]) result[mac] = {};
+          var existing = result[mac][routerId];
+          if (!existing || (conn && !existing.connected) || (conn === existing.connected && sig !== null && (existing.signal === null || sig > existing.signal))) {
+            result[mac][routerId] = { connected: conn, signal: sig };
+          }
+        });
+      });
+    });
+    return result;
+  }
+
+  function nowLabel(){
+    var d = new Date();
+    function p(n){ return (n<10?'0':'')+n; }
+    return p(d.getHours())+':'+p(d.getMinutes())+':'+p(d.getSeconds());
+  }
+
+  // Serverseitig (mesh_roaming_pi.py) persistierter Zustand - kommt bei jedem
+  // Poll frisch mit, kein localStorage noetig: der "Wahrheitsstand" liegt auf
+  // dem Dienst und ist von jedem Geraet im Netz aus gleich sichtbar.
+  var names = {};             // mac -> hostname (DHCP/DNS), vom Server
+  var nicknames = {};         // mac -> manueller Name, vom Server
+  var localNicknameOverrides = {}; // optimistische UI-Updates bis zum naechsten Poll
+  var eventLog = [];          // vom Server
+
+  var lastPerRouterData = {}; // rid -> {bySsid, flat}  - fuer Rendering
+  var lastAllSsids = [];      // stabile Reihenfolge der SSID-Segmente / Farben
+  var lastMultiNode = {};     // mac -> { routerId: {connected, signal} } - "zwischen Stationen"
+  var lastChannelUtil = {};   // rid -> ifname -> {own_pct,foreign_pct,rest_pct,...} oder null, vom Server
+  var selectedMac = null;     // aktuell im Detail-Panel angezeigter Client
+  var lastRenderedAssignment = {}; // nur lokal, fuer die Roam-Animation (Logging macht der Server)
+  var routerStatus = {};      // rid -> "ok" oder Fehlertext, vom Server
+
+  // ---- DOM-Referenzen -----------------------------------------------------
+  var mapSvg = document.getElementById('mapSvg');
+  var staticGroup = document.getElementById('staticMapGroup');
+  var overlay = document.getElementById('roamOverlay');
+  var detailPanel = document.getElementById('detailPanel');
+  var detailBody = document.getElementById('detailBody');
+  var detailCloseBtn = document.getElementById('detailCloseBtn');
+  var ssidLegendEl = document.getElementById('ssidLegend');
+  var dataBadge = document.getElementById('dataBadge');
+  var updatedAt = document.getElementById('updatedAt');
+  var summaryList = document.getElementById('summaryList');
+  var logList = document.getElementById('logList');
+  var networkLabelEl = document.getElementById('networkLabel');
+  var utilList = document.getElementById('utilList');
+  var utilHintEl = document.getElementById('utilHint');
+
+  // ---- Konfiguration anwenden (einmalig beim Start, s. loadConfigAndStart) -
+  function applyConfig(cfg){
+    ROUTERS = (cfg.routers || []).map(function(r){
+      return { id: r.id, room: r.room, name: r.name, ip: r.ip };
+    });
+    ROUTER_BY_ID = {};
+    HOST_POS = {};
+    MGMT_IP_TO_ROUTER = {};
+    (cfg.routers || []).forEach(function(r){
+      ROUTER_BY_ID[r.id] = { id: r.id, room: r.room, name: r.name, ip: r.ip };
+      HOST_POS[r.id] = { x: r.map_x, y: r.map_y };
+      (r.mgmt_ips || []).forEach(function(ip){ MGMT_IP_TO_ROUTER[ip] = r.id; });
+    });
+
+    if (cfg.roaming) {
+      if (typeof cfg.roaming.reachable_signal_threshold_dbm === 'number') REACHABLE_SIGNAL_THRESHOLD = cfg.roaming.reachable_signal_threshold_dbm;
+      if (typeof cfg.roaming.shift_amount_min === 'number') SHIFT_MIN = cfg.roaming.shift_amount_min;
+      if (typeof cfg.roaming.shift_amount_max === 'number') SHIFT_MAX = cfg.roaming.shift_amount_max;
+    }
+    if (cfg.signal) {
+      if (typeof cfg.signal.min_dbm === 'number') SIGNAL_MIN_DBM = cfg.signal.min_dbm;
+      if (typeof cfg.signal.max_dbm === 'number') SIGNAL_MAX_DBM = cfg.signal.max_dbm;
+      if (Array.isArray(cfg.signal.reference_rings_dbm) && cfg.signal.reference_rings_dbm.length) REFERENCE_RINGS_DBM = cfg.signal.reference_rings_dbm;
+    }
+    if (cfg.map) {
+      if (typeof cfg.map.radius_inner === 'number') R_INNER = cfg.map.radius_inner;
+      if (typeof cfg.map.radius_outer === 'number') R_OUTER = cfg.map.radius_outer;
+      if (Array.isArray(cfg.map.ssid_colors) && cfg.map.ssid_colors.length) SSID_HUES = cfg.map.ssid_colors;
+      SSID_COLOR_BY_NAME = {};
+      if (cfg.map.ssid_colors_by_name && typeof cfg.map.ssid_colors_by_name === 'object') {
+        Object.keys(cfg.map.ssid_colors_by_name).forEach(function(ssidName){
+          SSID_COLOR_BY_NAME[ssidName.toLowerCase()] = cfg.map.ssid_colors_by_name[ssidName];
+        });
+      }
+      if (mapSvg && cfg.map.viewbox_width && cfg.map.viewbox_height) {
+        mapSvg.setAttribute('viewBox', '0 0 '+cfg.map.viewbox_width+' '+cfg.map.viewbox_height);
+      }
+    }
+
+    if (cfg.channel_util) {
+      if (typeof cfg.channel_util.interval_sec === 'number') UTIL_INTERVAL_SEC = cfg.channel_util.interval_sec;
+      var colors = cfg.channel_util.colors || {};
+      var rootStyle = document.documentElement.style;
+      if (colors.own) rootStyle.setProperty('--chanutil-own', colors.own);
+      if (colors.foreign) rootStyle.setProperty('--chanutil-foreign', colors.foreign);
+      if (colors.rest) rootStyle.setProperty('--chanutil-rest', colors.rest);
+      if (utilHintEl) {
+        utilHintEl.textContent = 'Je Gerät und Funkband, neu berechnet als Differenz über die letzten '+UTIL_INTERVAL_SEC+' Sekunden (nicht seit Geräte-Start).';
+      }
+    }
+
+    var mapHint = document.getElementById('mapHint');
+    if (mapHint) {
+      mapHint.innerHTML = 'Farbe = SSID · Abstand vom Router = Signalstärke (außen = schwächer) · voller Punkt = 5 GHz, Ring = 2,4 GHz · durchgehend = aktueller Link · '+
+        'gestrichelt = auch an anderer Station empfangbar (≥ '+REACHABLE_SIGNAL_THRESHOLD+' dBm) · Klick auf einen Client = Details.';
+    }
+    if (cfg.network && cfg.network.label) {
+      networkLabelEl.textContent = cfg.network.label;
+      networkLabelEl.hidden = false;
+      document.title = 'Mesh-Lageplan · ' + cfg.network.label;
+    }
+  }
+
+  function effectiveNicknames(){
+    return Object.assign({}, nicknames, localNicknameOverrides);
+  }
+
+  function macLabel(mac){
+    var nn = effectiveNicknames();
+    if (nn[mac]) return nn[mac];
+    if (names[mac]) return names[mac];
+    return mac.slice(-8); // letzte 4 Oktette, meist eindeutig genug
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[<>&"]/g, function(c){
+      return { '<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;' }[c];
+    });
+  }
+
+  function renameClient(mac, name){
+    if (name && name.trim() !== '') {
+      localNicknameOverrides[mac] = name.trim();
+    } else {
+      delete localNicknameOverrides[mac];
+    }
+    renderMap();
+    refreshDetailIfOpen();
+    fetch('/api/rename', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mac: mac, name: name || '' })
+    }).catch(function(){ /* naechster Poll zeigt den tatsaechlichen Serverstand */ });
+  }
+
+  function promptRename(mac){
+    var current = effectiveNicknames()[mac] || names[mac] || '';
+    var name = window.prompt('Name für '+mac+':', current);
+    if (name !== null) renameClient(mac, name);
+  }
+
+  // ---- Karten-/Radar-Geometrie ---------------------------------------------
+  function radiusForSignal(sig){
+    if (sig === null || sig === undefined) return (R_INNER + R_OUTER) / 2 + 6;
+    var lo = Math.min(SIGNAL_MIN_DBM, SIGNAL_MAX_DBM), hi = Math.max(SIGNAL_MIN_DBM, SIGNAL_MAX_DBM);
+    var clamped = Math.max(lo, Math.min(hi, sig));
+    var t = (hi - clamped) / (hi - lo); // 0 = stark (max_dbm) .. 1 = schwach (min_dbm)
+    return R_INNER + t * (R_OUTER - R_INNER);
+  }
+  function pointAt(cx, cy, r, deg){
+    var rad = deg * Math.PI / 180;
+    return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+  }
+  function fmt(n){ return Math.round(n * 100) / 100; }
+
+  function ssidHue(ssidName){
+    var fixed = SSID_COLOR_BY_NAME[String(ssidName).toLowerCase()];
+    if (fixed) return fixed;
+    // Fallback fuer SSIDs ohne feste Zuordnung (z.B. neu hinzugekommene): wie
+    // bisher nach Entdeckungsreihenfolge aus der Palette zugewiesen.
+    var idx = lastAllSsids.indexOf(ssidName);
+    return SSID_HUES[(idx >= 0 ? idx : 0) % SSID_HUES.length];
+  }
+
+  // Band kommt vom Server als "2g"/"5g"/"6g" (ubus-Konfigurationswert, s.
+  // mesh_roaming_pi.py convert_router_output) - Gross-/Kleinschreibung und ein
+  // fehlender Wert werden tolerant behandelt (fehlt das Band, gilt wie bisher
+  // der volle Punkt als Darstellung, s. renderMap()).
+  function is24GhzBand(band){
+    return !!band && String(band).toLowerCase() === '2g';
+  }
+
+  function svgNode(tag){ return document.createElementNS('http://www.w3.org/2000/svg', tag); }
+
+  function sigWeight(sig){
+    var lo = Math.min(SIGNAL_MIN_DBM, SIGNAL_MAX_DBM), hi = Math.max(SIGNAL_MIN_DBM, SIGNAL_MAX_DBM);
+    var clamped = Math.max(lo, Math.min(hi, sig));
+    return clamped - lo + 5; // bleibt immer positiv
+  }
+
+  // Ausgangswinkel (gleichmaessig ueber den vollen Kreis verteilt) wird in
+  // Richtung der Station(en) verschoben, die diesen Client ebenfalls ueber
+  // der Schwelle hoeren - Client "rutscht" im Radardiagramm sichtbar Richtung
+  // Nachbarstation(en), bei denen er ebenfalls empfangbar ist.
+  function blendAngleTowardOthers(defaultAngle, cx, cy, hostId, mac){
+    var perRouter = lastMultiNode[mac];
+    if (!perRouter) return defaultAngle;
+    var vx = 0, vy = 0, totalW = 0, maxSig = null;
+    Object.keys(perRouter).forEach(function(rid){
+      if (rid === hostId || !HOST_POS[rid]) return;
+      var sig = perRouter[rid].signal;
+      if (sig === null || sig < REACHABLE_SIGNAL_THRESHOLD) return;
+      var other = HOST_POS[rid];
+      var brgRad = Math.atan2(other.y - cy, other.x - cx);
+      var w = sigWeight(sig);
+      vx += w * Math.cos(brgRad);
+      vy += w * Math.sin(brgRad);
+      totalW += w;
+      if (maxSig === null || sig > maxSig) maxSig = sig;
+    });
+    if (!totalW) return defaultAngle;
+    var targetDeg = Math.atan2(vy, vx) * 180 / Math.PI;
+    var hi = Math.max(SIGNAL_MIN_DBM, SIGNAL_MAX_DBM);
+    var t = Math.max(0, Math.min(1, (maxSig - REACHABLE_SIGNAL_THRESHOLD) / (hi - REACHABLE_SIGNAL_THRESHOLD)));
+    var shiftAmount = SHIFT_MIN + t * (SHIFT_MAX - SHIFT_MIN);
+    var delta = ((targetDeg - defaultAngle + 540) % 360) - 180; // kuerzester Drehsinn
+    return defaultAngle + delta * shiftAmount;
+  }
+
+  function renderMap(){
+    var bgParts = [], reachParts = [], dotParts = [], hostParts = [];
+    var dotPos = {};
+
+    ROUTERS.forEach(function(r){
+      var pos = HOST_POS[r.id];
+      var cx = pos.x, cy = pos.y;
+      var data = lastPerRouterData[r.id] || { bySsid:{}, flat:{} };
+      var status = routerStatus[r.id];
+      var hasError = status && status !== 'ok';
+
+      REFERENCE_RINGS_DBM.forEach(function(dbm){
+        var rr = radiusForSignal(dbm);
+        bgParts.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+fmt(rr)+'" fill="none" stroke="#202b31" stroke-width="1" stroke-dasharray="2,4"></circle>');
+      });
+
+      var macs = Object.keys(data.flat).sort(function(a,b){ return macLabel(a).localeCompare(macLabel(b)); });
+      var n = macs.length;
+      macs.forEach(function(mac, i){
+        var client = data.flat[mac];
+        var defaultAngle = n <= 1 ? -90 : (-90 + i * (360 / n));
+        var ang = blendAngleTowardOthers(defaultAngle, cx, cy, r.id, mac);
+        var rad = radiusForSignal(client.signal);
+        var p = pointAt(cx, cy, rad, ang);
+        dotPos[mac] = p;
+        var hue = ssidHue(client.ssid);
+
+        bgParts.push('<line x1="'+cx+'" y1="'+cy+'" x2="'+fmt(p.x)+'" y2="'+fmt(p.y)+'" stroke="'+hue+'" stroke-width="2" opacity="0.55"></line>');
+
+        var label = macLabel(mac);
+        var titleText = escapeHtml(label)+' · '+client.ssid+(client.band?' · '+client.band:'')+(client.signal!=null?' · '+client.signal+' dBm':'');
+        // Form des Punktes = Band (Nutzer-Vorgabe): 2,4 GHz als Ring (hohl),
+        // 5 GHz (und alles andere/unbekannte, bisheriges Verhalten) weiterhin
+        // als voller Punkt - Farbe (SSID) und Radius (Signal) bleiben davon
+        // unberuehrt, das ist ein zusaetzlicher, unabhaengiger Kanal.
+        var is24 = is24GhzBand(client.band);
+        var dotFill = is24 ? '#0d1317' : hue;
+        var dotStroke = is24 ? hue : '#0d1317';
+        var dotStrokeWidth = is24 ? 2.5 : 1.5;
+        dotParts.push('<circle class="client-dot" data-mac="'+mac+'" cx="'+fmt(p.x)+'" cy="'+fmt(p.y)+'" r="6" fill="'+dotFill+'" stroke="'+dotStroke+'" stroke-width="'+dotStrokeWidth+'"><title>'+titleText+'</title></circle>');
+
+        var lp2 = pointAt(cx, cy, rad+13, ang);
+        var cosv2 = Math.cos(ang*Math.PI/180);
+        var anchor2 = cosv2 > 0.25 ? 'start' : (cosv2 < -0.25 ? 'end' : 'middle');
+        dotParts.push('<text class="client-label" data-mac="'+mac+'" x="'+fmt(lp2.x)+'" y="'+fmt(lp2.y)+'" text-anchor="'+anchor2+'" dominant-baseline="middle">'+escapeHtml(label)+'</text>');
+      });
+
+      var titleY = cy - R_OUTER - 34, subY = cy - R_OUTER - 20;
+      hostParts.push('<circle class="host-dot" data-host-id="'+r.id+'" cx="'+cx+'" cy="'+cy+'" r="8" fill="'+(hasError?'#e2685c':'#3fc1c0')+'" stroke="#0d1317" stroke-width="2"></circle>');
+      hostParts.push('<text class="host-title'+(hasError?' err':'')+'" x="'+cx+'" y="'+titleY+'" text-anchor="middle">'+escapeHtml(r.name)+'</text>');
+      var subText = hasError
+        ? (escapeHtml(r.room)+' · '+escapeHtml(String(status)))
+        : (escapeHtml(r.room)+' · '+r.ip+' · '+Object.keys(data.flat).length+' Clients');
+      hostParts.push('<text class="host-sub'+(hasError?' err':'')+'" x="'+cx+'" y="'+subY+'" text-anchor="middle">'+subText+'</text>');
+    });
+
+    Object.keys(lastMultiNode).forEach(function(mac){
+      var primaryRid = null;
+      ROUTERS.forEach(function(r){ if ((lastPerRouterData[r.id]||{}).flat && lastPerRouterData[r.id].flat[mac]) primaryRid = r.id; });
+      var p = dotPos[mac];
+      if (!primaryRid || !p) return;
+      var perRouter = lastMultiNode[mac];
+      Object.keys(perRouter).forEach(function(rid){
+        if (rid === primaryRid || !HOST_POS[rid]) return;
+        var sig = perRouter[rid].signal;
+        if (sig === null || sig < REACHABLE_SIGNAL_THRESHOLD) return;
+        var hostP = HOST_POS[rid];
+        var mx=(p.x+hostP.x)/2, my=(p.y+hostP.y)/2;
+        var dx=hostP.x-p.x, dy=hostP.y-p.y;
+        var dist=Math.sqrt(dx*dx+dy*dy)||1;
+        var curve=Math.min(40, dist*0.15);
+        var qx=mx-(dy/dist)*curve, qy=my+(dx/dist)*curve;
+        var otherLabel = ROUTER_BY_ID[rid] ? (ROUTER_BY_ID[rid].name+' ('+ROUTER_BY_ID[rid].room+')') : rid;
+        reachParts.push('<path class="reach-line" d="M '+fmt(p.x)+' '+fmt(p.y)+' Q '+fmt(qx)+' '+fmt(qy)+' '+fmt(hostP.x)+' '+fmt(hostP.y)+'" fill="none" stroke="#3fc1c0" stroke-width="1.5" stroke-dasharray="3,5" opacity="0.55"><title>'+escapeHtml(macLabel(mac))+' auch empfangbar an '+escapeHtml(otherLabel)+' ('+sig+' dBm)</title></path>');
+      });
+    });
+
+    staticGroup.innerHTML = bgParts.concat(reachParts, dotParts, hostParts).join('');
+    staticGroup.querySelectorAll('[data-mac]').forEach(function(el){
+      el.addEventListener('click', function(){ showClientDetail(el.getAttribute('data-mac')); });
+    });
+
+    if (ssidLegendEl) {
+      ssidLegendEl.innerHTML = lastAllSsids.map(function(s){
+        return '<span class="legend-item"><span class="sig-dot" style="background:'+ssidHue(s)+'"></span>'+escapeHtml(s)+'</span>';
+      }).join('');
+    }
+  }
+
+  function currentAssignment(){
+    var out = {};
+    ROUTERS.forEach(function(r){
+      var flat = (lastPerRouterData[r.id]||{}).flat || {};
+      Object.keys(flat).forEach(function(mac){ out[mac] = r.id; });
+    });
+    return out;
+  }
+
+  function renderSummary(){
+    var assignment = currentAssignment();
+    var total = Object.keys(assignment).length;
+    var rows = ['<div class="summary-row"><span>Clients gesamt</span><span class="n">'+total+'</span></div>'];
+    rows.push('<div class="summary-sub">Nach Router</div>');
+    ROUTERS.forEach(function(r){
+      var n = Object.keys((lastPerRouterData[r.id]||{}).flat || {}).length;
+      // Ueberschrift je Router ist der Routername, der Ort steht als Untertitel
+      // darunter (Nutzer-Vorgabe, gilt fuer alle Router-Bezeichnungen).
+      rows.push('<div class="summary-row"><span><span class="label-main">'+escapeHtml(r.name)+'</span><span class="label-sub">'+escapeHtml(r.room)+'</span></span><span class="n">'+n+'</span></div>');
+    });
+    if (lastAllSsids.length) {
+      rows.push('<div class="summary-sub">Nach SSID</div>');
+      lastAllSsids.forEach(function(ssidName){
+        var n = 0;
+        ROUTERS.forEach(function(r){
+          var list = (lastPerRouterData[r.id]||{}).bySsid || {};
+          n += (list[ssidName] || []).length;
+        });
+        rows.push('<div class="summary-row"><span>'+ssidName+'</span><span class="n">'+n+'</span></div>');
+      });
+    }
+    summaryList.innerHTML = rows.join('');
+  }
+
+  function relTime(ts){
+    var diffMs = Date.now() - ts;
+    var mins = Math.round(diffMs/60000);
+    if (mins < 1) return 'gerade eben';
+    if (mins < 60) return 'vor '+mins+' min';
+    var hrs = Math.round(mins/60);
+    if (hrs < 24) return 'vor '+hrs+' h';
+    return new Date(ts).toLocaleString('de-DE');
+  }
+
+  function renderLog(){
+    if (eventLog.length === 0) {
+      logList.innerHTML = '<div class="log-empty">Noch keine Ereignisse.</div>';
+      return;
+    }
+    var items = eventLog.slice().sort(function(a,b){ return b.time - a.time; }).slice(0,150).map(function(entry){
+      var kindLabel = entry.kind === 'roam' ? 'Roam' : (entry.kind === 'connect' ? 'Neu' : 'Weg');
+      var route;
+      if (entry.kind === 'roam') {
+        route = (ROUTER_BY_ID[entry.from] ? ROUTER_BY_ID[entry.from].name : entry.from) + ' → ' + (ROUTER_BY_ID[entry.to] ? ROUTER_BY_ID[entry.to].name : entry.to);
+      } else if (entry.kind === 'connect') {
+        route = 'verbunden an ' + (ROUTER_BY_ID[entry.to] ? ROUTER_BY_ID[entry.to].name : entry.to);
+      } else {
+        route = 'zuletzt an ' + (ROUTER_BY_ID[entry.from] ? ROUTER_BY_ID[entry.from].name : entry.from);
+      }
+      // Route-Text in der SSID-Farbe aus dem Diagramm einfaerben - der
+      // Server liefert die SSID des Ereignisses mit; fehlt sie
+      // (aeltere, vor dem Update entstandene Log-Eintraege), bleibt der Text
+      // in der Standardfarbe.
+      var routeColor = entry.ssid ? ssidHue(entry.ssid) : null;
+      var routeHtml = routeColor ? '<span style="color:'+routeColor+'">'+route+'</span>' : route;
+      return '<div class="log-entry">' +
+        '<div class="log-time">'+relTime(entry.time)+'</div>' +
+        '<div class="log-line">' +
+          '<span class="log-kind '+entry.kind+'">'+kindLabel+'</span>' +
+          '<span class="log-mac">'+macLabel(entry.mac)+'</span>' +
+        '</div>' +
+        '<div class="log-route">'+routeHtml+(entry.signal!==null && entry.signal!==undefined ? ' · '+entry.signal+' dBm' : '')+'</div>' +
+      '</div>';
+    });
+    logList.innerHTML = items.join('');
+  }
+
+  // ---- Detail-Panel (Klick auf Client) -------------------------------------
+  function showClientDetail(mac){
+    selectedMac = mac;
+    var assignment = currentAssignment();
+    var primaryRid = assignment[mac];
+    var primaryData = primaryRid && lastPerRouterData[primaryRid] ? lastPerRouterData[primaryRid].flat[mac] : null;
+
+    var rows = [];
+    rows.push('<div class="detail-name">'+escapeHtml(macLabel(mac))+'</div>');
+    rows.push('<div class="detail-mac">'+mac+'</div>');
+
+    if (primaryRid) {
+      var primaryRouter = ROUTER_BY_ID[primaryRid];
+      var primaryLabel = primaryRouter ? (escapeHtml(primaryRouter.name)+' <span class="detail-sub-inline">('+escapeHtml(primaryRouter.room)+')</span>') : escapeHtml(primaryRid);
+      rows.push('<div class="detail-line"><b>Aktuell:</b> '+primaryLabel+
+        (primaryData ? ' · '+escapeHtml(primaryData.ssid)+(primaryData.band?' · '+escapeHtml(primaryData.band):'')+(primaryData.signal!=null?' · '+primaryData.signal+' dBm':'') : '')+
+        '</div>');
+    } else {
+      rows.push('<div class="detail-line detail-muted">Aktuell nicht verbunden</div>');
+    }
+
+    var perRouter = lastMultiNode[mac] || {};
+    var otherRows = Object.keys(perRouter).filter(function(rid){ return rid !== primaryRid; }).map(function(rid){
+      var info = perRouter[rid];
+      var above = info.signal !== null && info.signal >= REACHABLE_SIGNAL_THRESHOLD;
+      var router = ROUTER_BY_ID[rid];
+      // Ueberschrift ist der Routername, der Ort steht als Untertitel darunter
+      // (Nutzer-Vorgabe, gilt fuer alle Router-Bezeichnungen).
+      var sightingLabel = router
+        ? '<span class="label-main">'+escapeHtml(router.name)+'</span><span class="label-sub">'+escapeHtml(router.room)+'</span>'
+        : escapeHtml(rid);
+      return '<div class="detail-sighting"><span>'+sightingLabel+'</span>'+
+        '<span class="detail-sig">'+(info.signal!=null?info.signal+' dBm':'?')+'</span>'+
+        '<span class="detail-flag '+(above?'ok':'low')+'">'+(above?'Linie':'unter Schwelle')+'</span></div>';
+    });
+    if (otherRows.length) {
+      rows.push('<div class="detail-sub">Auch sichtbar an</div>');
+      rows.push(otherRows.join(''));
+    }
+
+    var recentLog = eventLog.filter(function(e){ return e.mac === mac; }).sort(function(a,b){ return b.time-a.time; }).slice(0,5);
+    if (recentLog.length) {
+      rows.push('<div class="detail-sub">Letzte Ereignisse</div>');
+      recentLog.forEach(function(e){
+        var kindLabel = e.kind === 'roam' ? 'Roam' : (e.kind === 'connect' ? 'Neu' : 'Weg');
+        var route;
+        if (e.kind === 'roam') route = escapeHtml(ROUTER_BY_ID[e.from]?ROUTER_BY_ID[e.from].name:e.from)+' → '+escapeHtml(ROUTER_BY_ID[e.to]?ROUTER_BY_ID[e.to].name:e.to);
+        else if (e.kind === 'connect') route = 'verbunden an '+escapeHtml(ROUTER_BY_ID[e.to]?ROUTER_BY_ID[e.to].name:e.to);
+        else route = 'zuletzt an '+escapeHtml(ROUTER_BY_ID[e.from]?ROUTER_BY_ID[e.from].name:e.from);
+        var routeColor = e.ssid ? ssidHue(e.ssid) : null;
+        var routeHtml = routeColor ? '<span style="color:'+routeColor+'">'+route+'</span>' : route;
+        rows.push('<div class="detail-log-entry">'+relTime(e.time)+' · '+kindLabel+' · '+routeHtml+'</div>');
+      });
+    }
+
+    rows.push('<button type="button" class="detail-rename" id="detailRenameBtn">Umbenennen</button>');
+    detailBody.innerHTML = rows.join('');
+    detailPanel.hidden = false;
+    var renameBtn = document.getElementById('detailRenameBtn');
+    if (renameBtn) renameBtn.addEventListener('click', function(){ promptRename(mac); });
+  }
+
+  function hideDetail(){
+    selectedMac = null;
+    detailPanel.hidden = true;
+  }
+
+  function refreshDetailIfOpen(){
+    if (detailPanel.hidden || !selectedMac) return;
+    var assignment = currentAssignment();
+    var stillKnown = (selectedMac in assignment) || (selectedMac in lastMultiNode);
+    if (!stillKnown) { hideDetail(); return; }
+    showClientDetail(selectedMac);
+  }
+
+  detailCloseBtn.addEventListener('click', hideDetail);
+
+  // ---- Roaming-Animation (Pfeil + Puls an den Router-Knoten) ---------------
+  // Rein visuell/lokal je Browser-Tab - das eigentliche Ereignis-Log fuehrt
+  // ausschliesslich der Server (mesh_roaming_pi.py).
+  function pulseHost(id){
+    var pos = HOST_POS[id];
+    if (!pos || !overlay) return;
+    var ring = svgNode('circle');
+    ring.setAttribute('cx', pos.x); ring.setAttribute('cy', pos.y); ring.setAttribute('r', 8);
+    ring.setAttribute('class', 'host-pulse');
+    overlay.appendChild(ring);
+    requestAnimationFrame(function(){
+      requestAnimationFrame(function(){
+        ring.setAttribute('r', 30);
+        ring.style.opacity = '0';
+      });
+    });
+    setTimeout(function(){ if (ring.parentNode) ring.parentNode.removeChild(ring); }, 1000);
+  }
+
+  function drawRoam(fromId, toId){
+    if (!overlay || !HOST_POS[fromId] || !HOST_POS[toId] || fromId === toId) return;
+    var a = HOST_POS[fromId], b = HOST_POS[toId];
+    var mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    var dx = b.x-a.x, dy = b.y-a.y;
+    var dist = Math.sqrt(dx*dx+dy*dy) || 1;
+    var curve = Math.min(60, dist*0.25);
+    var cx = mx - (dy/dist)*curve;
+    var cy = my + (dx/dist)*curve;
+
+    var path = svgNode('path');
+    path.setAttribute('class','roam-path');
+    path.setAttribute('marker-end','url(#arrowhead)');
+    path.setAttribute('d', 'M '+a.x+' '+a.y+' Q '+cx+' '+cy+' '+b.x+' '+b.y);
+    overlay.appendChild(path);
+
+    var len = 0;
+    try { len = path.getTotalLength(); } catch(e){ len = 200; }
+    if (reduceMotion) {
+      path.style.opacity = '0.9';
+    } else {
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){ path.style.strokeDashoffset = '0'; });
+      });
+    }
+    setTimeout(function(){ path.style.opacity = '0'; }, 2600);
+    setTimeout(function(){ if (path.parentNode) path.parentNode.removeChild(path); }, 3400);
+
+    pulseHost(fromId);
+    pulseHost(toId);
+  }
+
+  var CONNECTION = { state:'connecting', failCount:0 };
+
+  function setBadge(){
+    if (CONNECTION.state === 'offline') {
+      dataBadge.innerHTML = '<span class="dot"></span>Verbindung zum Dienst unterbrochen';
+      dataBadge.className = 'badge offline';
+    } else if (CONNECTION.state === 'connecting') {
+      dataBadge.innerHTML = '<span class="dot"></span>Verbinde…';
+      dataBadge.className = 'badge sample';
+    } else {
+      dataBadge.innerHTML = '<span class="dot"></span>Live';
+      dataBadge.className = 'badge live';
+    }
+  }
+
+  // ---- Kanalauslastung ------------------------------------------------
+  // Teil-zu-Ganzem-Balken je Gerät/Band, Farbe kategorial fuer "eigen"/"fremd"
+  // (validiert, s. Datenviz-Skill) + neutraler Rest-Track fuer ungenutzte
+  // Kapazitaet. Legende immer sichtbar (>=2 Kategorien), Prozent-Beschriftung
+  // direkt im Segment nur wenn es dort noch lesbar Platz hat.
+  var BAND_LABELS = { '2g':'2,4 GHz', '5g':'5 GHz', '6g':'6 GHz' };
+  function bandLabel(bandCode, freqMhz){
+    if (bandCode && BAND_LABELS[String(bandCode).toLowerCase()]) return BAND_LABELS[String(bandCode).toLowerCase()];
+    if (typeof freqMhz === 'number') return freqMhz+' MHz';
+    return bandCode || '?';
+  }
+  function fmtMs(ms){ return (typeof ms === 'number' ? ms.toLocaleString('de-DE') : '?')+' ms'; }
+  function fmtPct(pct){ return (typeof pct === 'number' ? pct.toLocaleString('de-DE', {maximumFractionDigits:1}) : '?')+' %'; }
+
+  function utilSegmentHtml(cls, pct, labelMs, labelPct, title){
+    if (!pct || pct <= 0) return '';
+    // Direkte Beschriftung nur, wenn das Segment schaetzungsweise breit genug
+    // ist, um den Text ohne Clipping darzustellen (s. Datenviz-Skill: niemals
+    // Text durch das Segment abschneiden - sonst lieber nur Tooltip/Legende).
+    var showLabel = pct >= 12;
+    return '<div class="util-seg '+cls+'" style="flex:'+fmt(pct)+' 0 0" title="'+escapeHtml(title)+'">' +
+      (showLabel ? '<span class="util-seg-label">'+fmtPct(pct)+'</span>' : '') +
+    '</div>';
+  }
+
+  function renderUtilBand(ifname, data){
+    if (!data) {
+      return '<div class="util-band">' +
+        '<div class="util-band-head"><span>'+escapeHtml(ifname)+'</span></div>' +
+        '<div class="util-unavailable">nicht verfügbar (Treiber liefert keine BSS-Empfangszeit)</div>' +
+      '</div>';
+    }
+    var label = bandLabel(data.band, data.freq_mhz);
+    var ownTitle = 'Eigene Nutzung: '+fmtMs(data.own_ms)+' ('+fmtPct(data.own_pct)+')';
+    var foreignTitle = 'Fremde Nutzung: '+fmtMs(data.foreign_ms)+' ('+fmtPct(data.foreign_pct)+')';
+    var restTitle = 'Rest (frei): '+fmtMs(data.rest_ms)+' ('+fmtPct(data.rest_pct)+')';
+    return '<div class="util-band">' +
+      '<div class="util-band-head"><span>'+escapeHtml(label)+'</span><span>letzte '+fmt(data.window_sec)+' s</span></div>' +
+      '<div class="util-bar">' +
+        utilSegmentHtml('own', data.own_pct, data.own_ms, data.own_pct, ownTitle) +
+        utilSegmentHtml('foreign', data.foreign_pct, data.foreign_ms, data.foreign_pct, foreignTitle) +
+        utilSegmentHtml('rest', data.rest_pct, data.rest_ms, data.rest_pct, restTitle) +
+      '</div>' +
+    '</div>';
+  }
+
+  function renderUtil(){
+    if (!utilList) return;
+    if (!ROUTERS.length) {
+      utilList.innerHTML = '<div class="util-empty">Noch keine Kanaldaten.</div>';
+      return;
+    }
+    // Jedes konfigurierte Geraet wird aufgefuehrt (wie im Uebersicht-Panel) -
+    // auch ohne Daten, statt es stillschweigend wegzulassen; so bleibt
+    // erkennbar, dass fuer dieses Geraet (noch) keine Kanaldaten vorliegen,
+    // statt dass es wie ein Darstellungsfehler aussieht.
+    var parts = ROUTERS.map(function(r){
+      var perIf = lastChannelUtil[r.id];
+      var bands;
+      if (!perIf || !Object.keys(perIf).length) {
+        bands = '<div class="util-unavailable">noch keine Kanaldaten</div>';
+      } else {
+        bands = Object.keys(perIf).sort().map(function(ifname){
+          return renderUtilBand(ifname, perIf[ifname]);
+        }).join('');
+      }
+      // Ueberschrift ist der Routername, der Ort steht als Untertitel darunter
+      // (Nutzer-Vorgabe, gilt fuer alle Router-Bezeichnungen in dieser Seite).
+      return '<div class="util-router"><div class="util-router-name">'+escapeHtml(r.name)+'</div>'+
+        '<div class="util-router-room">'+escapeHtml(r.room)+'</div>'+bands+'</div>';
+    });
+
+    parts.push(
+      '<div class="util-legend">' +
+        '<span class="util-legend-item"><span class="util-legend-swatch own"></span>Eigene Nutzung</span>' +
+        '<span class="util-legend-item"><span class="util-legend-swatch foreign"></span>Fremde Nutzung</span>' +
+        '<span class="util-legend-item"><span class="util-legend-swatch rest"></span>Rest (frei)</span>' +
+      '</div>'
+    );
+    utilList.innerHTML = parts.join('');
+  }
+
+  function render(){
+    setBadge();
+    renderMap();
+    renderSummary();
+    renderLog();
+    renderUtil();
+    refreshDetailIfOpen();
+  }
+
+  function applySnapshot(raw){
+    var perRouter = {};
+    var routersMap = (raw && typeof raw === 'object' && raw.routers && typeof raw.routers === 'object') ? raw.routers : {};
+
+    ROUTERS.forEach(function(r){
+      var data = routersMap[r.id];
+      perRouter[r.id] = extractRouterClients(data);
+    });
+
+    names = (raw && raw.names && typeof raw.names === 'object') ? raw.names : {};
+    nicknames = (raw && raw.nicknames && typeof raw.nicknames === 'object') ? raw.nicknames : {};
+    // Sobald der Server denselben Namen kennt, kann die lokale, optimistische
+    // Kopie verworfen werden - vermeidet dauerhaftes Auseinanderlaufen.
+    Object.keys(localNicknameOverrides).forEach(function(mac){
+      if (nicknames[mac] === localNicknameOverrides[mac]) delete localNicknameOverrides[mac];
+    });
+    eventLog = (raw && Array.isArray(raw.log)) ? raw.log : [];
+    routerStatus = (raw && raw.meta && raw.meta.routerStatus) || {};
+    lastChannelUtil = (raw && raw.channelUtil && typeof raw.channelUtil === 'object') ? raw.channelUtil : {};
+
+    var newAssignment = {};
+    Object.keys(perRouter).forEach(function(rid){
+      Object.keys(perRouter[rid].flat).forEach(function(mac){ newAssignment[mac] = rid; });
+    });
+
+    var freshRoams = [];
+    Object.keys(newAssignment).forEach(function(mac){
+      var to = newAssignment[mac];
+      var from = lastRenderedAssignment[mac];
+      if (from !== undefined && from !== to) freshRoams.push({ from:from, to:to });
+    });
+    lastRenderedAssignment = newAssignment;
+
+    lastPerRouterData = perRouter;
+    lastMultiNode = extractMultiNode(routersMap);
+    var ssidSet = {};
+    Object.keys(perRouter).forEach(function(rid){
+      Object.keys(perRouter[rid].bySsid).forEach(function(s){ ssidSet[s] = true; });
+    });
+    lastAllSsids = Object.keys(ssidSet).sort(function(a,b){ return a.localeCompare(b); });
+
+    CONNECTION.state = 'live';
+    CONNECTION.failCount = 0;
+    render();
+    updatedAt.textContent = 'Aktualisiert '+nowLabel();
+
+    freshRoams.forEach(function(r){ drawRoam(r.from, r.to); });
+  }
+
+  // ---- 1Hz-Live-Abfrage vom Dienst -----------------------------------------
+  var POLL_MS = 1000;
+  var pollTimer = null;
+
+  function poll(){
+    fetch('/data.json', { cache:'no-store' }).then(function(resp){
+      if (!resp.ok) throw new Error('HTTP '+resp.status);
+      return resp.json();
+    }).then(function(data){
+      applySnapshot(data);
+    }).catch(function(err){
+      CONNECTION.failCount++;
+      if (CONNECTION.failCount >= 3) {
+        CONNECTION.state = 'offline';
+        setBadge();
+      }
+    });
+  }
+
+  function startPolling(){
+    if (pollTimer) return;
+    poll();
+    pollTimer = setInterval(poll, POLL_MS);
+  }
+
+  // ---- Start: erst die Konfiguration laden, dann rendern/pollen -----------
+  function loadConfigAndStart(){
+    fetch('/config.json', { cache:'no-store' }).then(function(resp){
+      if (!resp.ok) throw new Error('HTTP '+resp.status);
+      return resp.json();
+    }).then(function(cfg){
+      applyConfig(cfg);
+      render();
+      startPolling();
+    }).catch(function(err){
+      dataBadge.innerHTML = '<span class="dot"></span>Konfiguration nicht geladen – erneuter Versuch…';
+      dataBadge.className = 'badge offline';
+      setTimeout(loadConfigAndStart, 2000);
+    });
+  }
+
+  loadConfigAndStart();
+})();
+</script>
+</body>
+</html>

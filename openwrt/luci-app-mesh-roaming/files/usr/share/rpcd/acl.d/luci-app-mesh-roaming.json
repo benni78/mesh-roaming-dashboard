@@ -1,0 +1,19 @@
+{
+	"luci-app-mesh-roaming": {
+		"description": "Zugriff auf die Mesh-Roaming-Dashboard-Konfiguration",
+		"read": {
+			"uci": [ "mesh-roaming" ],
+			"file": {
+				"/etc/config/mesh-roaming": [ "read" ]
+			},
+			"init": [ "mesh-roaming" ]
+		},
+		"write": {
+			"uci": [ "mesh-roaming" ],
+			"file": {
+				"/etc/config/mesh-roaming": [ "read" ]
+			},
+			"init": [ "mesh-roaming" ]
+		}
+	}
+}
