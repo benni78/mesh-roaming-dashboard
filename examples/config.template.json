@@ -1,0 +1,93 @@
+{
+  "network": {
+    "label": "<Name des neuen Netzwerks>"
+  },
+
+  "ssh": {
+    "user": "root",
+    "key_path": "/etc/mesh-roaming/id_ed25519",
+    "connect_timeout_sec": 5,
+    "command_timeout_sec": 8,
+    "control_master": true,
+    "control_persist": "60s"
+  },
+
+  "polling": {
+    "interval_sec": 1
+  },
+
+  "http": {
+    "bind": "0.0.0.0",
+    "port": 8765
+  },
+
+  "storage": {
+    "db_path": "/var/lib/mesh-roaming/state.db",
+    "runtime_dir": "/run/mesh-roaming"
+  },
+
+  "html_path": null,
+
+  "ap_ifnames": [
+    "phy0-ap0", "phy0-ap1", "phy0-ap2", "phy0-ap3",
+    "phy1-ap0", "phy1-ap1", "phy1-ap2", "phy1-ap3"
+  ],
+
+  "roaming": {
+    "reachable_signal_threshold_dbm": -75,
+    "shift_amount_min": 0.15,
+    "shift_amount_max": 0.70,
+    "log_max_entries": 200
+  },
+
+  "signal": {
+    "min_dbm": -90,
+    "max_dbm": -30,
+    "reference_rings_dbm": [-55, -70, -90]
+  },
+
+  "map": {
+    "viewbox_width": 900,
+    "viewbox_height": 600,
+    "radius_inner": 16,
+    "radius_outer": 100,
+    "ssid_colors": ["#5b8dd6", "#d6905b", "#7fbf6b", "#b06bbf", "#5bb0b0", "#c2b95a"],
+    "ssid_colors_by_name": {}
+  },
+
+  "channel_util": {
+    "interval_sec": 10,
+    "colors": {
+      "own": "#3987e5",
+      "foreign": "#e66767",
+      "rest": "#2f3d46"
+    }
+  },
+
+  "routers": [
+    {
+      "id": "router-1",
+      "ip": "<Client-LAN-IP von Router 1>",
+      "name": "<Name von Router 1>",
+      "room": "<Ort von Router 1>",
+      "map_x": 250,
+      "map_y": 300,
+      "mgmt_ips": ["<mgmt-IP von Router 1, falls vorhanden>"]
+    },
+    {
+      "id": "router-2",
+      "ip": "<Client-LAN-IP von Router 2>",
+      "name": "<Name von Router 2>",
+      "room": "<Ort von Router 2>",
+      "map_x": 650,
+      "map_y": 300,
+      "mgmt_ips": ["<mgmt-IP von Router 2, falls vorhanden>"]
+    }
+  ],
+
+  "mqtt": {
+    "broker": null,
+    "base_topic": "mesh-roaming",
+    "publish_interval_sec": 10
+  }
+}

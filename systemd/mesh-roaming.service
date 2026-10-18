@@ -1,0 +1,39 @@
+[Unit]
+Description=Mesh-Lageplan Live-Server (Roaming-Visualisierung)
+Documentation=file:///opt/mesh-roaming/mesh_roaming_pi.py
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mesh-roaming
+Group=mesh-roaming
+WorkingDirectory=/opt/mesh-roaming
+ExecStart=/usr/bin/python3 /opt/mesh-roaming/mesh_roaming_pi.py
+Restart=on-failure
+RestartSec=5
+
+# Alle netzwerkspezifischen und variablen Parameter (Router, IPs, AP-
+# Interface-Namen, Kartenlayout, Schwellwerte, SSH-/HTTP-/MQTT-Einstellungen)
+# stehen in EINER Datei - siehe examples/config.example.json als Vorlage.
+# Fuer ein anderes Netzwerk/Mesh genuegt es, eine eigene config.json unter
+# einem anderen Pfad abzulegen und hier einzutragen; Skript und diese Unit
+# bleiben unveraendert.
+Environment=MESH_ROAMING_CONFIG=/etc/mesh-roaming/config.json
+
+# Persistenter Zustand (SQLite: Nicknames, Ereignis-Log, letzter bekannter
+# Verbindungsstand) sowie SSH-ControlMaster-Sockets - Pfade dafuer stehen
+# ebenfalls in der Konfigurationsdatei (storage.db_path / storage.runtime_dir),
+# per Default identisch zu den hier vorbereiteten Verzeichnissen.
+StateDirectory=mesh-roaming
+RuntimeDirectory=mesh-roaming
+RuntimeDirectoryMode=0700
+
+# Haertung
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,114 @@
+{
+  "network": {
+    "label": "Beispielnetz"
+  },
+
+  "ssh": {
+    "user": "root",
+    "key_path": "/etc/mesh-roaming/id_ed25519",
+    "connect_timeout_sec": 5,
+    "command_timeout_sec": 8,
+    "control_master": true,
+    "control_persist": "60s"
+  },
+
+  "polling": {
+    "interval_sec": 1
+  },
+
+  "http": {
+    "bind": "0.0.0.0",
+    "port": 8765
+  },
+
+  "storage": {
+    "db_path": "/var/lib/mesh-roaming/state.db",
+    "runtime_dir": "/run/mesh-roaming"
+  },
+
+  "html_path": null,
+
+  "ap_ifnames": [
+    "phy0-ap0", "phy0-ap1", "phy0-ap2", "phy0-ap3",
+    "phy1-ap0", "phy1-ap1", "phy1-ap2", "phy1-ap3"
+  ],
+
+  "roaming": {
+    "reachable_signal_threshold_dbm": -75,
+    "shift_amount_min": 0.15,
+    "shift_amount_max": 0.70,
+    "log_max_entries": 200
+  },
+
+  "signal": {
+    "min_dbm": -90,
+    "max_dbm": -30,
+    "reference_rings_dbm": [-55, -70, -90]
+  },
+
+  "map": {
+    "viewbox_width": 900,
+    "viewbox_height": 600,
+    "radius_inner": 16,
+    "radius_outer": 100,
+    "ssid_colors": ["#5b8dd6", "#d6905b", "#7fbf6b", "#b06bbf", "#5bb0b0", "#c2b95a"],
+    "ssid_colors_by_name": {
+      "MeinWLAN": "#5fb56f",
+      "Gaeste": "#d97b32"
+    }
+  },
+
+  "channel_util": {
+    "interval_sec": 10,
+    "colors": {
+      "own": "#3987e5",
+      "foreign": "#e66767",
+      "rest": "#2f3d46"
+    }
+  },
+
+  "routers": [
+    {
+      "id": "og-west",
+      "ip": "192.0.2.11",
+      "name": "Router-Wohnzimmer",
+      "room": "1. OG · West",
+      "map_x": 150,
+      "map_y": 150,
+      "mgmt_ips": ["192.0.2.111"]
+    },
+    {
+      "id": "og-ost",
+      "ip": "192.0.2.12",
+      "name": "Router-Arbeitszimmer",
+      "room": "1. OG · Ost",
+      "map_x": 450,
+      "map_y": 150,
+      "mgmt_ips": ["192.0.2.112"]
+    },
+    {
+      "id": "eg-west",
+      "ip": "192.0.2.13",
+      "name": "Router-Kueche",
+      "room": "EG · West",
+      "map_x": 150,
+      "map_y": 450,
+      "mgmt_ips": ["192.0.2.113"]
+    },
+    {
+      "id": "eg-ost",
+      "ip": "192.0.2.14",
+      "name": "Router-Keller",
+      "room": "EG · Ost",
+      "map_x": 450,
+      "map_y": 450,
+      "mgmt_ips": []
+    }
+  ],
+
+  "mqtt": {
+    "broker": null,
+    "base_topic": "mesh-roaming",
+    "publish_interval_sec": 10
+  }
+}
