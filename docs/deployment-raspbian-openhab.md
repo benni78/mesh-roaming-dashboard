@@ -85,7 +85,15 @@ Log im laufenden Betrieb: `journalctl -u mesh-roaming -f`
 
 ## 6. Aufrufen
 
-`http://<pi-ip>:8765/` von jedem Gerät im eigenen Netz.
+Von jedem Gerät im eigenen Netz im Browser öffnen:
+
+**`http://<pi-ip-oder-hostname>:8765/`**
+
+`<pi-ip-oder-hostname>` durch die tatsächliche IP-Adresse oder den
+Hostnamen des Pi ersetzen (z. B. `http://192.168.1.50:8765/` oder
+`http://raspberrypi.local:8765/`). Der Port `8765` ist der Default aus
+`http.port` in der `config.json` und kann dort bei Bedarf geändert werden –
+dann entsprechend anpassen.
 
 ## Was die Seite automatisch mitbringt
 
