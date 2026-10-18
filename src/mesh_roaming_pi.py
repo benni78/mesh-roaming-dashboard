@@ -4,7 +4,7 @@
 mesh_roaming_pi.py
 ==================
 
-Ersatz fuer ein PowerShell/plink-basiertes Live-Skript, gedacht zum
+Live-Dienst fuer ein OpenWrt-Mesh-Netzwerk (usteer), gedacht zum
 Dauerbetrieb als systemd-Dienst auf einem Raspberry Pi (z.B. neben openHAB).
 
 Alle netzwerkspezifischen und variablen Parameter (Router, IPs, AP-
@@ -276,7 +276,7 @@ def build_ssh_cmd(router_ip):
     return cmd
 
 
-# ---- Parsing (Port von Convert-RouterOutput aus mesh-roaming-live.ps1) ----
+# ---- Parsing der Router-Ausgaben -----------------------------------------
 
 # "iw dev <ifname> survey dump"-Ausgabe. Felder sind seit Interface-Up
 # kumulierte Millisekunden - "channel BSS receive time" (NL80211_SURVEY_INFO_
@@ -721,7 +721,7 @@ class MeshState:
             return len(self.log)
 
 
-# ---- Router-Poller (ein Thread je Router, analog PS-Runspace) -----------
+# ---- Router-Poller (ein Thread je Router) --------------------------------
 
 def router_worker(rid, ip, stop_event, local=False):
     # "local": der Dienst laeuft auf genau diesem Router - die
