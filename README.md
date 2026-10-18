@@ -206,15 +206,25 @@ Voraussetzung auf den Routern: OpenWrt mit `usteer` und `hostapd`
 
 ## Schnellstart (OpenWrt, direkt auf einem Mesh-Router)
 
+**Wichtig – zuerst prüfen, welchen Paketmanager der Router hat**
+(`opkg --version` bzw. `apk --version`): Seit OpenWrt 25.12 ist `apk`
+(Alpine-Stil) auf vielen Targets der Standard statt `opkg` – ein anderes
+Paketformat, nicht nur ein anderer Befehl. Ein `.ipk` lässt sich bei `apk`
+grundsätzlich nicht installieren.
+
 ```sh
 cd openwrt
 ./build-ipk.sh
 # -> openwrt/dist/mesh-roaming_<version>_all.ipk
 # -> openwrt/dist/luci-app-mesh-roaming_<version>_all.ipk   (optional, LuCI-Formular)
+
+./build-apk.sh   # NUR bei apk-Routern: wandelt die .ipk-Dateien zusätzlich in .apk um
 ```
 
-Danach per `scp`/`opkg install` auf den Router übertragen. Vollständige
-Anleitung (Konfiguration über LuCI oder UCI, SSH-Schlüssel, Deinstallation):
+Danach per `scp`/`opkg install` (bzw. `apk add --allow-untrusted` für
+`.apk`) auf den Router übertragen. Vollständige Anleitung (Paketmanager-
+Erkennung, `.apk`-Umwandlung inkl. APK v2/v3, Konfiguration über LuCI oder
+UCI, SSH-Schlüssel, Deinstallation):
 [`docs/deployment-openwrt.md`](docs/deployment-openwrt.md).
 
 ## Schnellstart (Raspbian/Debian, z. B. neben openHAB)

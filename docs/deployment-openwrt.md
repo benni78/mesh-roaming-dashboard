@@ -25,8 +25,11 @@ separaten Pi, inklusive optionaler LuCI-Oberfläche zur Konfiguration.
 
 Beide Pakete liegen als Quelle unter [`openwrt/`](../openwrt) und werden mit
 [`openwrt/build-ipk.sh`](../openwrt/build-ipk.sh) zu `.ipk`-Dateien gebaut
-(ohne OpenWrt-SDK, nur mit `ar`/`tar`/`gzip` – siehe Kommentar im Skript).
-Fertige `.ipk`-Dateien liegen nach dem Bauen in `openwrt/dist/`.
+(ohne OpenWrt-SDK, nur mit `tar`/`gzip`). Für Router mit `apk` statt `opkg`
+(Standard seit OpenWrt 25.12, s. Schritt 0/1b unten) wandelt zusätzlich
+[`openwrt/build-apk.sh`](../openwrt/build-apk.sh) diese `.ipk`-Dateien in
+das dafür nötige `.apk`-Format um. Fertige Dateien liegen nach dem Bauen in
+`openwrt/dist/`.
 
 **Wichtiger Hinweis zu den Python-Abhängigkeiten:** `mesh_roaming_pi.py`
 nutzt ausschließlich die Python-3-Standardbibliothek (u. a. `sqlite3`,
@@ -42,14 +45,25 @@ nachschauen und ggf. die passenden Teilpakete von Hand nachinstallieren.
 Auf sehr flashknappen Geräten (wenig freier Speicher) kann das insgesamt
 mehrere MB zusätzlich belegen – vorher mit `df` prüfen.
 
+## 0. Welchen Paketmanager hat der Router – `opkg` oder `apk`?
+
+**Das zuerst klären, nicht raten.** Seit OpenWrt 25.12 ist auf vielen
+Targets `apk` (Alpine-Stil) der Standard-Paketmanager statt `opkg` – und
+das ist nicht nur ein anderer Befehl, sondern ein **komplett anderes
+Paketformat**. Ein `.ipk` lässt sich bei `apk` grundsätzlich nicht
+installieren, selbst wenn es völlig korrekt gebaut ist – `apk add`/
+`apk install` bricht dann mit `file format is invalid or inconsistent` ab.
+Auf dem Router prüfen:
+
+```sh
+opkg --version    # vorhanden -> opkg-Router, weiter mit Schritt 1
+apk --version     # vorhanden -> apk-Router, weiter mit Schritt 1 UND 1b
+```
+
 ## 1. `.ipk`-Dateien bauen
 
-**Auf einem gewöhnlichen Linux-Rechner ausführen (eigener PC/Laptop, VM,
-WSL) – NICHT auf dem OpenWrt-Router selbst.** Der auf OpenWrt/BusyBox
-mitgelieferte `ar`-Befehl kann in der Regel nur Archive lesen/entpacken,
-nicht neu erstellen – ein `.ipk` lässt sich damit nicht bauen. `./build-ipk.sh`
-prüft das selbst und bricht mit einer klaren Fehlermeldung ab, statt mitten
-im Bauen mit einem kryptischen `tar`-/`ar`-Fehler zu scheitern.
+Auf einem gewöhnlichen Linux-Rechner ausführen (eigener PC/Laptop, VM,
+WSL) oder hier im Repository:
 
 ```sh
 cd openwrt
@@ -58,7 +72,57 @@ cd openwrt
 # -> openwrt/dist/luci-app-mesh-roaming_<version>_all.ipk
 ```
 
+Ein `.ipk` ist dabei **kein** `ar`-Archiv (anders als ein Debian-`.deb`,
+dem es oberflächlich ähnelt), sondern ein einzelner gzip-komprimierter
+tar-Stream mit `./debian-binary`, `./data.tar.gz` und `./control.tar.gz`
+darin – exakt das Format und die Reihenfolge aus OpenWrts eigenem
+`ipkg-build`-Skript. `build-ipk.sh` baut es so; für reinen `opkg`-Betrieb
+reicht das bereits.
+
+### 1b. Nur für `apk`-Router: zusätzlich nach `.apk` umwandeln
+
+Ein für `opkg` korrektes `.ipk` ist für `apk` trotzdem das falsche Format
+– es muss zusätzlich in APK v2 und (meist) APK v3 umgewandelt werden.
+`build-apk.sh` erledigt das:
+
+```sh
+./build-apk.sh
+# -> openwrt/dist/mesh-roaming_<version>_all.apk        (APK v2 oder v3,
+# -> openwrt/dist/luci-app-mesh-roaming_<version>_all.apk je nach dem, ob
+#                                                           apk-tools >= 3.0
+#                                                           lokal verfügbar ist)
+```
+
+Ist auf dem Build-Rechner kein `apk` mit `apk mkpkg` (apk-tools ≥ 3.0)
+installiert – üblich, da das kein Standardpaket vieler Linux-Distributionen
+ist –, baut das Skript nur die APK-v2-Zwischenstufe und gibt am Ende genau
+die Befehle aus, um den letzten Schritt (v2 → v3) nachzuholen, z. B. kurz
+in einem Alpine-Edge-Container:
+
+```sh
+docker run --rm -v "$PWD":/w -w /w alpine:edge sh -c '
+  apk add --no-cache apk-tools bash util-linux gzip tar coreutils findutils fakeroot &&
+  fakeroot openwrt/tools/openwrt-ipk2apk/convert-apk-v2-to-v3.sh openwrt/dist/*.apk
+'
+```
+
+**Ob der eigene Router APK v2 oder v3 braucht, lässt sich nicht pauschal
+vorhersagen** – am günstigsten einfach erst die (billigere) v2-Datei
+ausprobieren (Schritt 2); kommt dieselbe Fehlermeldung wie beim `.ipk`,
+fehlt der v3-Schritt.
+
+Die beiden Umwandlungswerkzeuge (`openwrt-ipk2apk.py`, reines Python,
+keine Zusatzpakete; `convert-apk-v2-to-v3.sh`, braucht `apk-tools` ≥ 3.0)
+liegen unter [`openwrt/tools/openwrt-ipk2apk/`](../openwrt/tools/openwrt-ipk2apk)
+– unverändert übernommen vom MIT-lizenzierten Projekt
+[rychly/openwrt-ipk2apk](https://github.com/rychly/openwrt-ipk2apk)
+(siehe `README-vendored.md` dort für Details/Herkunft). Diese beiden
+Dateien stehen unter der MIT-Lizenz, nicht unter der PolyForm-Lizenz
+dieses Repositories.
+
 ## 2. Auf den Router übertragen und installieren
+
+**Bei `opkg`:**
 
 ```sh
 scp openwrt/dist/mesh-roaming_*_all.ipk root@<router-ip>:/tmp/
@@ -69,6 +133,23 @@ opkg update
 opkg install /tmp/mesh-roaming_*_all.ipk
 opkg install /tmp/luci-app-mesh-roaming_*_all.ipk   # optional, für die LuCI-Oberfläche
 ```
+
+**Bei `apk`** (siehe Schritt 1b):
+
+```sh
+scp openwrt/dist/mesh-roaming_*_all.apk root@<router-ip>:/tmp/
+scp openwrt/dist/luci-app-mesh-roaming_*_all.apk root@<router-ip>:/tmp/   # optional
+
+ssh root@<router-ip>
+apk add --allow-untrusted /tmp/mesh-roaming_*_all.apk
+apk add --allow-untrusted /tmp/luci-app-mesh-roaming_*_all.apk   # optional
+```
+
+`--allow-untrusted` ist nötig, weil das Paket nicht mit einem auf dem
+Router hinterlegten Schlüssel signiert ist (es kommt ja nicht aus einem
+offiziellen Feed). Schlägt der Befehl mit `file format is invalid or
+inconsistent` fehl, war die installierte `.apk`-Datei noch APK v2 statt
+v3 – Schritt 1b (v2→v3-Umwandlung) nachholen.
 
 `mesh-roaming` wird dabei automatisch aktiviert und gestartet (`postinst`
 ruft `/etc/init.d/mesh-roaming enable && start` auf).
