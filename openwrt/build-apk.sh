@@ -14,8 +14,9 @@
 #   2. APK v2 -> APK v3 (braucht "apk-tools >= 3.0" / "apk mkpkg" - dieses
 #                        Skript macht das automatisch MIT, falls vorhanden,
 #                        sonst gibt es unten die genauen Befehle aus, um es
-#                        selbst nachzuholen, z. B. kurz in einem Alpine-
-#                        Edge-Container)
+#                        selbst nachzuholen - braucht dafuer KEIN Docker:
+#                        apk-tools baut als normales Meson/C-Projekt direkt
+#                        auf jeder Linux-Distribution, s. u.)
 #
 # WICHTIG: Ob der eigene Router ueberhaupt APK v2 ODER v3 braucht, ist nicht
 # in jedem Fall sicher vorhersagbar (manche apk-Versionen akzeptieren v2,
@@ -47,10 +48,23 @@ fi
 
 # apk-tools >= 3.0 ("apk mkpkg") vorhanden? Dann gleich bis APK v3 bauen,
 # sonst nur v2 erzeugen und unten erklaeren, wie v3 nachgeholt wird.
+#
+# WICHTIG: NICHT ueber "apk mkpkg --help" pruefen - das schlaegt fehl, wenn
+# apk-tools ohne scdoc (also ohne eingebaute Hilfetexte) gebaut wurde
+# ("ERROR: This apk-tools has been built without help"), obwohl "mkpkg"
+# selbst dabei ganz normal funktioniert. Stattdessen die Versionsnummer aus
+# "apk --version" auswerten (z. B. "apk-tools 3.0.8, compiled for x86_64.").
 HAVE_APK_MKPKG=0
 if command -v apk >/dev/null 2>&1; then
-	if { apk mkpkg --help 2>&1 || true; } | grep -q mkpkg; then
+	apk_major=$(apk --version 2>/dev/null | sed -n 's/^apk-tools \([0-9][0-9]*\)\..*/\1/p')
+	if [ -n "$apk_major" ] && [ "$apk_major" -ge 3 ] 2>/dev/null; then
 		HAVE_APK_MKPKG=1
+	fi
+	# OpenWrts eigenes apk (z. B. 3.0.5 auf 25.12) ist ohne "mkpkg" gebaut
+	# ("'mkpkg' is not an apk command") - dann bei APK v2 bleiben; das
+	# akzeptiert OpenWrt 25.12 per "apk add --allow-untrusted" ebenfalls.
+	if apk mkpkg 2>&1 | grep -q "is not an apk command"; then
+		HAVE_APK_MKPKG=0
 	fi
 fi
 
@@ -64,7 +78,17 @@ convert_one() {
 
 	if [ "$HAVE_APK_MKPKG" -eq 1 ]; then
 		echo "apk-tools >= 3.0 gefunden - baue direkt APK v3 ..."
-		"$V2_TO_V3" "$v2"
+		# "apk mkpkg" uebernimmt Besitzer/Gruppe aus dem Dateisystem - ohne
+		# root/fakeroot stuende sonst der Build-Nutzer (statt root:root) als
+		# Besitzer im Paket.
+		if [ "$(id -u)" -eq 0 ]; then
+			"$V2_TO_V3" "$v2"
+		elif command -v fakeroot >/dev/null 2>&1; then
+			fakeroot "$V2_TO_V3" "$v2"
+		else
+			echo "WARNUNG: weder root noch fakeroot - Dateien im Paket gehoeren dem Build-Nutzer statt root." >&2
+			"$V2_TO_V3" "$v2"
+		fi
 		echo "fertig (APK v3): $v2"
 	else
 		echo "APK v2 gebaut: $v2"
@@ -106,16 +130,42 @@ Zuerst ausprobieren (kostet nichts, manche apk-Versionen akzeptieren v2):
   ssh root@<router-ip> apk add --allow-untrusted /tmp/<paket>.apk
 
 Kommt dieselbe Fehlermeldung wie beim .ipk ("file format is invalid or
-inconsistent"), fehlt der v3-Schritt. Dafuer am einfachsten kurz einen
-Alpine-Edge-Container nutzen (enthaelt apk-tools 3.0+):
+inconsistent" bzw. "no such package"), fehlt der v3-Schritt. apk-tools 3.0+
+selbst bauen braucht KEIN Docker und KEIN OpenWrt-Buildsystem - es ist ein
+ganz normales Meson/C-Projekt, das auf jeder gaengigen Linux-Distribution
+(Ubuntu, Debian, Fedora, ...) direkt baut:
+
+  sudo apt install -y git meson ninja-build pkg-config liblua5.3-dev \
+                       libssl-dev libzstd-dev
+  git clone https://gitlab.alpinelinux.org/alpine/apk-tools.git
+  cd apk-tools
+  meson setup build
+  meson compile -C build
+
+Danach den frisch gebauten Binary (liegt unter build/src/apk) einmalig vor
+den eigentlichen Aufruf stellen und dieses Skript erneut laufen lassen -
+es findet "apk mkpkg" dann automatisch:
+
+  PATH="$PWD/build/src:$PATH" ./build-apk.sh
+
+(Wer schon ein volles OpenWrt-Buildsystem/SDK ausgecheckt hat, braucht
+dafuer trotzdem KEINEN Checkout-spezifischen Weg zu suchen - das Bauen von
+apk-tools *innerhalb* des OpenWrt-Buildroots als Host-Tool ist laut
+OpenWrt-Forum fehleranfaelliger (u. a. Lua-Versionskonflikte zwischen
+lua5.1/lua5.3 je nach Branch) als der obige direkte Weg gegen den
+Upstream-Quellcode.)
+
+Alternative, falls auf dem eigenen Rechner aus anderen Gruenden kein
+Compiler/Meson installiert werden soll: ein kurzlebiger Alpine-Edge-
+Container (enthaelt apk-tools 3.0+ bereits fertig gebaut):
 
   docker run --rm -v "$PWD":/w -w /w alpine:edge sh -c '
     apk add --no-cache apk-tools bash util-linux gzip tar coreutils findutils fakeroot &&
     fakeroot openwrt/tools/openwrt-ipk2apk/convert-apk-v2-to-v3.sh openwrt/dist/*.apk
   '
 
-Das wandelt die *.apk-Dateien in openwrt/dist/ in-place zu APK v3 um.
-Danach wie gewohnt per scp auf den Router kopieren und
+Beide Wege wandeln die *.apk-Dateien in openwrt/dist/ in-place zu APK v3
+um. Danach wie gewohnt per scp auf den Router kopieren und
 "apk add --allow-untrusted ./paket.apk" installieren.
 EOF
 fi

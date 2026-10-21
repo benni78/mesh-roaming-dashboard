@@ -176,6 +176,12 @@ def build_config(sections):
             "shift_amount_max": _float(g, "shift_amount_max", 0.70),
             "log_max_entries": _int(g, "log_max_entries", 200),
         },
+        # Speicherbegrenzung (DSGVO) - s. DEFAULT_CONFIG["privacy"] in
+        # mesh_roaming_pi.py fuer Details.
+        "privacy": {
+            "retention_days": _int(g, "retention_days", 7),
+            "anonymous_stats_enabled": _bool(g, "anonymous_stats_enabled", True),
+        },
         "signal": {
             "min_dbm": _int(g, "signal_min_dbm", -90),
             "max_dbm": _int(g, "signal_max_dbm", -30),

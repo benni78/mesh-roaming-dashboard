@@ -73,20 +73,39 @@ build_one() {
 	work=$(mktemp -d)
 	trap 'rm -rf "$work"' EXIT
 
+	# Dateirechte NICHT aus dem Quellbaum uebernehmen, sondern in einer
+	# Arbeitskopie explizit setzen: Geht der Quellbaum ueber Windows, ein
+	# ZIP oder scp ohne -p, gehen die +x-Bits verloren - dann landen
+	# Init-Skript und postinst mit 0644 im Paket und "/etc/init.d/<paket>
+	# enable" scheitert auf dem Router mit "Permission denied".
+	# (Auf NTFS unter Git Bash/MSYS ist chmod wirkungslos - dort lieber in
+	# einer Linux-Umgebung, z. B. der Test-VM, bauen.)
+	mkdir -p "$work/control" "$work/files"
+	cp -R "$src/control/." "$work/control/"
+	[ -d "$src/files" ] && cp -R "$src/files/." "$work/files/"
+	find "$work/control" "$work/files" -type d -exec chmod 0755 {} +
+	find "$work/control" "$work/files" -type f -exec chmod 0644 {} +
+	for f in preinst postinst prerm postrm; do
+		[ -f "$work/control/$f" ] && chmod 0755 "$work/control/$f"
+	done
+	for d in etc/init.d etc/uci-defaults usr/bin usr/sbin usr/libexec; do
+		[ -d "$work/files/$d" ] && find "$work/files/$d" -type f -exec chmod 0755 {} +
+	done
+
 	# control.tar.gz: nur die Dateien, die tatsaechlich existieren
 	ctrl_files=""
 	for f in control conffiles postinst preinst prerm postrm; do
-		[ -f "$src/control/$f" ] && ctrl_files="$ctrl_files $f"
+		[ -f "$work/control/$f" ] && ctrl_files="$ctrl_files $f"
 	done
 	# shellcheck disable=SC2086
-	tar -C "$src/control" $TAR_EXTRA_FLAGS \
+	tar -C "$work/control" $TAR_EXTRA_FLAGS \
 		-czf "$work/control.tar.gz" $ctrl_files
 
 	# data.tar.gz: der komplette Zielbaum, falls vorhanden (ein reines
 	# Metapaket ohne eigene Dateien ist zulaessig und hat kein files/)
 	if [ -d "$src/files" ]; then
 		# shellcheck disable=SC2086
-		tar -C "$src/files" $TAR_EXTRA_FLAGS \
+		tar -C "$work/files" $TAR_EXTRA_FLAGS \
 			-czf "$work/data.tar.gz" .
 	else
 		# shellcheck disable=SC2086

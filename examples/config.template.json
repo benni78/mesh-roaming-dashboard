@@ -40,6 +40,11 @@
     "log_max_entries": 200
   },
 
+  "privacy": {
+    "retention_days": 7,
+    "anonymous_stats_enabled": true
+  },
+
   "signal": {
     "min_dbm": -90,
     "max_dbm": -30,

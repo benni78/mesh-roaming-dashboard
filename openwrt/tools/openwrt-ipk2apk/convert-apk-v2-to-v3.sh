@@ -53,8 +53,14 @@ check_deps() {
         err "missing tools: ${missing[*]}"
         return 1
     fi
-    # apk mkpkg --help exits 1 even on success, so avoid pipefail.
-    { apk mkpkg --help 2>&1 || true; } | grep -q mkpkg ||
+    # NOTE (local patch, see README-vendored.md): upstream originally checked
+    # via "apk mkpkg --help", but that fails with "ERROR: This apk-tools has
+    # been built without help" on any apk-tools built without scdoc (no
+    # bundled help text) - which does not mean mkpkg itself is unavailable.
+    # Check the version number from "apk --version" instead.
+    local apk_major
+    apk_major="$(apk --version 2>/dev/null | sed -n 's/^apk-tools \([0-9][0-9]*\)\..*/\1/p')"
+    [[ -n "$apk_major" && "$apk_major" -ge 3 ]] ||
         { err "apk mkpkg not available (apk-tools >= 3.0 required)"; return 1; }
 }
 

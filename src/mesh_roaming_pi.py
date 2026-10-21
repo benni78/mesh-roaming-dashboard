@@ -26,7 +26,15 @@ Was der Dienst macht:
 - Liefert per HTTP: "/" die Live-Seite (mesh-lageplan-live.html im selben
   Ordner), "/config.json" die netzwerkspezifischen Anzeige-Parameter
   (Router/Kartenlayout/Schwellwerte) fuer die Seite, "/data.json" den
-  aktuellen Live-Snapshot, "POST /api/rename" zum Umbenennen eines Clients.
+  aktuellen Live-Snapshot, "POST /api/rename" zum Umbenennen eines Clients,
+  "POST /api/erase" zum sofortigen Loeschen aller Daten einer MAC-Adresse
+  (Art. 17 DSGVO).
+- Begrenzt die Aufbewahrung personenbezogener, geraetebezogener Daten
+  automatisch auf "privacy.retention_days" Tage nach der letzten
+  Beobachtung des jeweiligen Geraets (Art. 5 Abs. 1 lit. e DSGVO) und
+  fuehrt parallel eine anonyme, stuendliche Zusammenfassung ohne MAC-Adresse
+  fort, die fuer Langzeit-Trendanalysen unbegrenzt aufbewahrt werden darf -
+  siehe README.md, Abschnitt "Datenschutz-Hinweis (DSGVO)".
 - Optional (nur wenn mqtt.broker in der Konfiguration gesetzt ist):
   veroeffentlicht einfache Zusammenfassungs-Metriken per MQTT, z.B. um sie
   wie andere Smarthome-Metriken ueber openHAB in InfluxDB/Grafana
@@ -60,6 +68,16 @@ CONFIG_PATH = os.environ.get("MESH_ROAMING_CONFIG", "/etc/mesh-roaming/config.js
 
 MAC_RE = re.compile(r"^[0-9a-f]{2}(:[0-9a-f]{2}){5}$", re.IGNORECASE)
 
+# Mindestabstand zwischen zwei Durchlaeufen der Speicherbegrenzung
+# (_prune_expired) - die eigentliche Pollrate (Default: 1 s) ist dafuer
+# unnoetig oft, Minutengenauigkeit reicht fuer den DSGVO-Zweck voellig aus.
+_PRUNE_INTERVAL_MS = 60_000
+
+
+def _hour_bucket(ts_ms):
+    """UTC-Stundenbucket (z. B. "2026-10-20T07") fuer die anonyme Statistik."""
+    return time.strftime("%Y-%m-%dT%H", time.gmtime(ts_ms / 1000))
+
 # --- Defaults - werden von der Konfigurationsdatei ueberschrieben/ergaenzt --
 
 DEFAULT_CONFIG = {
@@ -87,7 +105,29 @@ DEFAULT_CONFIG = {
         "reachable_signal_threshold_dbm": -75,
         "shift_amount_min": 0.15,
         "shift_amount_max": 0.70,
+        # Sekundaere Sicherheitsgrenze gegen unbegrenztes Wachstum (z. B. bei
+        # falsch konfiguriertem "privacy.retention_days" oder sehr hoher
+        # Ereignisrate). Die eigentliche, DSGVO-relevante Speicherbegrenzung
+        # ist "privacy.retention_days" unten - NICHT diese Zahl: die hier
+        # begrenzt nur die Anzahl Eintraege, nicht deren Alter.
         "log_max_entries": 200,
+    },
+    # Datenschutz/DSGVO: siehe README.md, Abschnitt "Datenschutz-Hinweis
+    # (DSGVO)" fuer die vollstaendige Begruendung. Personenbezogene,
+    # geraetebezogene Daten (MAC-Adresse, DHCP-Hostname, IP, Nickname,
+    # Roaming-Log-Eintraege mit MAC) werden spaetestens "retention_days"
+    # Tage NACH DEM LETZTEN BEOBACHTEN dieses Geraets automatisch und
+    # dauerhaft geloescht (Art. 5 Abs. 1 lit. e DSGVO, Speicherbegrenzung) -
+    # nicht nur aus der Anzeige entfernt, sondern aus der SQLite-Datenbank.
+    # "anonymous_stats_enabled" fuehrt parallel dazu eine stuendliche,
+    # geraeteunabhaengige Zusammenfassung (Ereignisanzahl + Ø-Signalstaerke
+    # je Router/Band) fort, die KEINE MAC-Adresse enthaelt und damit kein
+    # personenbezogenes Datum im Sinne der DSGVO ist - diese darf und soll
+    # fuer Langzeit-Trendanalysen unbegrenzt aufbewahrt werden, auch nachdem
+    # die zugehoerigen Rohdaten laengst geloescht sind.
+    "privacy": {
+        "retention_days": 7,
+        "anonymous_stats_enabled": True,
     },
     "signal": {
         "min_dbm": -90,
@@ -483,6 +523,25 @@ class MeshState:
         self.nicknames = store.get_json("nicknames", {})
         self.last_seen = store.get_json("last_seen", {})  # mac -> {"rid":..., "ssid":...} (aeltere Daten: mac -> routerId als reiner String)
         self.log = store.get_json("log", [])
+        # mac -> Zeitpunkt (ms) der letzten Beobachtung dieses Geraets, egal
+        # ob als WLAN-Client (new_assignment) oder nur per DHCP-Lease/ARP
+        # (names/ips) - Grundlage fuer die Speicherbegrenzung in
+        # _prune_expired(). Bewusst getrennt von "last_seen" oben: das wird
+        # jeden Zyklus komplett neu aufgebaut (nur aktuell verbundene WLAN-
+        # Clients), dieses hier bleibt bestehen, bis die Aufbewahrungsfrist
+        # abgelaufen ist.
+        self.device_last_seen_ts = store.get_json("device_last_seen_ts", {})
+        # Stuendliche, anonyme Zusammenfassung ohne MAC-Adresse (siehe
+        # DEFAULT_CONFIG["privacy"] oben) - kein personenbezogenes Datum,
+        # daher keine Ablaufgrenze in _prune_expired().
+        # Struktur: {"<YYYY-MM-DDTHH>": {"<router_id>": {
+        #   "connect": n, "roam": n, "disconnect": n,
+        #   "signal_sum": f, "signal_n": n,
+        #   "by_band": {"<band>": {"signal_sum": f, "signal_n": n}},
+        # }}}
+        self.stats = store.get_json("stats_hourly", {})
+        self._stats_dirty = False
+        self._last_prune_ms = 0
         # Kanalauslastung - rein im RAM, bewusst NICHT persistiert: es
         # sind kurzlebige gleitende Differenzen (s. UTIL_WINDOW_SEC), nach
         # einem Neustart des Dienstes baut sich die Historie binnen eines
@@ -510,6 +569,16 @@ class MeshState:
         with self.lock:
             self.routers[rid] = router_result
             self.generated_at[rid] = time.time()
+
+            # Jedes Geraet, das diesen Zyklus per DHCP-Lease/ARP auftaucht,
+            # gilt als "gerade beobachtet" - unabhaengig davon, ob sich sein
+            # Name/IP seit dem letzten Mal geaendert hat (ein unveraendertes
+            # DHCP-Lease ist trotzdem ein Beleg, dass das Geraet noch da
+            # ist). Das haelt device_last_seen_ts fuer die Speicherbegrenzung
+            # aktuell, s. _prune_expired().
+            now_ms = int(time.time() * 1000)
+            for mac in set(names) | set(ips):
+                self.device_last_seen_ts[mac] = now_ms
 
             changed_names = False
             for mac, name in names.items():
@@ -550,29 +619,38 @@ class MeshState:
         new_assignment = {}
         for rid, rr in self.routers.items():
             for mac, info in self._flat_clients(rr).items():
-                new_assignment[mac] = {"rid": rid, "ssid": info.get("ssid"), "signal": info.get("signal")}
+                new_assignment[mac] = {
+                    "rid": rid, "ssid": info.get("ssid"), "signal": info.get("signal"),
+                    "band": info.get("band"),
+                }
 
         ts = int(time.time() * 1000)
         changed = False
         for mac, info in new_assignment.items():
+            self.device_last_seen_ts[mac] = ts
             to_rid = info["rid"]
             ssid = info["ssid"]
             sig = info["signal"]
+            band = info["band"]
             prev = self.last_seen.get(mac)
             from_rid = self._prev_rid(prev)
             if from_rid is None:
                 self.log.append({"time": ts, "kind": "connect", "mac": mac, "from": None, "to": to_rid, "signal": sig, "ssid": ssid})
+                self._bump_stat(ts, to_rid, "connect", sig, band)
                 changed = True
             elif from_rid != to_rid:
                 self.log.append({"time": ts, "kind": "roam", "mac": mac, "from": from_rid, "to": to_rid, "signal": sig, "ssid": ssid})
+                self._bump_stat(ts, to_rid, "roam", sig, band)
                 changed = True
         for mac, prev in list(self.last_seen.items()):
             if mac not in new_assignment:
+                from_rid = self._prev_rid(prev)
                 self.log.append({
                     "time": ts, "kind": "disconnect", "mac": mac,
-                    "from": self._prev_rid(prev), "to": None, "signal": None,
+                    "from": from_rid, "to": None, "signal": None,
                     "ssid": self._prev_ssid(prev),
                 })
+                self._bump_stat(ts, from_rid, "disconnect")
                 changed = True
 
         self.last_seen = new_assignment
@@ -581,6 +659,90 @@ class MeshState:
             if len(self.log) > LOG_MAX:
                 self.log = self.log[-LOG_MAX:]
             self.store.set_json("log", self.log)
+        if new_assignment:
+            self.store.set_json("device_last_seen_ts", self.device_last_seen_ts)
+        if self._stats_dirty:
+            self.store.set_json("stats_hourly", self.stats)
+            self._stats_dirty = False
+
+        self._prune_expired(ts)
+
+    def _bump_stat(self, ts_ms, rid, kind, signal=None, band=None):
+        # Muss unter self.lock aufgerufen werden. Anonyme, geraeteunabhaengige
+        # Zusammenfassung (kein MAC-Feld!) - s. DEFAULT_CONFIG["privacy"] und
+        # self.stats oben.
+        if not STATS_ENABLED or not rid:
+            return
+        bucket = self.stats.setdefault(_hour_bucket(ts_ms), {})
+        r = bucket.setdefault(rid, {
+            "connect": 0, "roam": 0, "disconnect": 0,
+            "signal_sum": 0.0, "signal_n": 0, "by_band": {},
+        })
+        r[kind] = r.get(kind, 0) + 1
+        if signal is not None:
+            r["signal_sum"] += signal
+            r["signal_n"] += 1
+            if band:
+                bb = r["by_band"].setdefault(band, {"signal_sum": 0.0, "signal_n": 0})
+                bb["signal_sum"] += signal
+                bb["signal_n"] += 1
+        self._stats_dirty = True
+
+    def _prune_expired(self, now_ms):
+        # Muss unter self.lock aufgerufen werden. Loescht geraetebezogene
+        # personenbezogene Daten (Roaming-Log, Name, IP, Nickname), deren
+        # Geraet seit "privacy.retention_days" nicht mehr beobachtet wurde -
+        # echte Speicherbegrenzung (Art. 5 Abs. 1 lit. e DSGVO), nicht nur
+        # eine Anzeige-/Anzahlgrenze wie LOG_MAX. self.stats ist davon
+        # bewusst ausgenommen: keine MAC-Adresse enthalten, also kein
+        # personenbezogenes Datum, s. DEFAULT_CONFIG["privacy"].
+        if RETENTION_MS <= 0:
+            return  # 0/negativ = Aufbewahrungsfrist bewusst deaktiviert
+        if now_ms - self._last_prune_ms < _PRUNE_INTERVAL_MS:
+            return
+        self._last_prune_ms = now_ms
+        cutoff = now_ms - RETENTION_MS
+
+        before = len(self.log)
+        self.log = [e for e in self.log if e.get("time", 0) >= cutoff]
+        if len(self.log) != before:
+            self.store.set_json("log", self.log)
+
+        stale_macs = [mac for mac, seen in self.device_last_seen_ts.items() if seen < cutoff]
+        if stale_macs:
+            for mac in stale_macs:
+                self.device_last_seen_ts.pop(mac, None)
+                self.names.pop(mac, None)
+                self.ips.pop(mac, None)
+                self.nicknames.pop(mac, None)
+            self.store.set_json("device_last_seen_ts", self.device_last_seen_ts)
+            self.store.set_json("device_names", self.names)
+            self.store.set_json("device_ips", self.ips)
+            self.store.set_json("nicknames", self.nicknames)
+
+    def erase_device(self, mac):
+        # Sofort-Loeschung auf Zuruf fuer eine einzelne MAC-Adresse (Art. 17
+        # DSGVO, Recht auf Loeschung) - unabhaengig von der automatischen
+        # Frist in _prune_expired(). Ueber POST /api/erase ansprechbar.
+        with self.lock:
+            before = len(self.log)
+            self.log = [e for e in self.log if e.get("mac") != mac]
+            removed_log = before - len(self.log)
+            # Bewusst NICHT als "or"-Kette mit Kurzschlussauswertung - sonst
+            # wuerden z. B. ips/nicknames/device_last_seen_ts gar nicht erst
+            # geleert, sobald schon names.pop() etwas gefunden hat.
+            had_name = self.names.pop(mac, None) is not None
+            had_ip = self.ips.pop(mac, None) is not None
+            had_nickname = self.nicknames.pop(mac, None) is not None
+            had_seen = self.device_last_seen_ts.pop(mac, None) is not None
+            had_data = had_name or had_ip or had_nickname or had_seen or removed_log > 0
+            if had_data:
+                self.store.set_json("log", self.log)
+                self.store.set_json("device_names", self.names)
+                self.store.set_json("device_ips", self.ips)
+                self.store.set_json("nicknames", self.nicknames)
+                self.store.set_json("device_last_seen_ts", self.device_last_seen_ts)
+            return removed_log
 
     def update_survey(self, rid, survey):
         # survey: ifname -> {"freq_mhz", "active_ms", "busy_ms", "receive_ms",
@@ -790,6 +952,9 @@ def public_config():
         "signal": CONFIG["signal"],
         "map": CONFIG["map"],
         "channel_util": CONFIG["channel_util"],
+        # Fuer Transparenz gegenueber betroffenen Personen (Art. 13 DSGVO) -
+        # die Oberflaeche kann das anzeigen, falls gewuenscht.
+        "privacy": CONFIG["privacy"],
     }
 
 
@@ -843,6 +1008,22 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True})
             except Exception as e:
                 self._send_json({"ok": False, "error": str(e)}, status=400)
+        elif path == "/api/erase":
+            # Recht auf Loeschung (Art. 17 DSGVO) auf Zuruf fuer eine
+            # einzelne MAC-Adresse - loescht Name/IP/Nickname/Roaming-Log-
+            # Eintraege fuer dieses Geraet sofort, unabhaengig von der
+            # automatischen Frist in privacy.retention_days.
+            length = int(self.headers.get("Content-Length") or "0")
+            raw = self.rfile.read(length) if length else b"{}"
+            try:
+                payload = json.loads(raw.decode("utf-8"))
+                mac = str(payload.get("mac", "")).lower().strip()
+                if not MAC_RE.match(mac):
+                    raise ValueError("ungueltige MAC-Adresse")
+                removed = STATE.erase_device(mac)
+                self._send_json({"ok": True, "removed_log_entries": removed})
+            except Exception as e:
+                self._send_json({"ok": False, "error": str(e)}, status=400)
         else:
             self.send_error(404)
 
@@ -881,6 +1062,7 @@ def main():
     global USE_CONTROL_MASTER, CONTROL_PERSIST, POLL_INTERVAL_SEC
     global HTTP_BIND, HTTP_PORT, DB_PATH, RUNTIME_DIR, HTML_PATH, LOG_MAX
     global MQTT_BROKER, MQTT_BASE_TOPIC, MQTT_PUBLISH_INTERVAL_SEC
+    global RETENTION_MS, STATS_ENABLED
 
     CONFIG = load_config(CONFIG_PATH)
 
@@ -904,6 +1086,11 @@ def main():
     RUNTIME_DIR = CONFIG["storage"]["runtime_dir"]
     HTML_PATH = CONFIG["html_path"]
     LOG_MAX = int(CONFIG["roaming"]["log_max_entries"])
+
+    # Speicherbegrenzung (DSGVO, Art. 5 Abs. 1 lit. e) - s. DEFAULT_CONFIG
+    # ["privacy"] und MeshState._prune_expired() fuer Details.
+    RETENTION_MS = int(CONFIG["privacy"]["retention_days"]) * 86400_000
+    STATS_ENABLED = bool(CONFIG["privacy"]["anonymous_stats_enabled"])
 
     MQTT_BROKER = CONFIG["mqtt"].get("broker") or None
     MQTT_BASE_TOPIC = CONFIG["mqtt"]["base_topic"]

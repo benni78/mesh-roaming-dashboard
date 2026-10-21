@@ -22,6 +22,7 @@ return view.extend({
 		s.anonymous = true;
 
 		s.tab('general', 'Allgemein');
+		s.tab('privacy', 'Datenschutz');
 		s.tab('ssh', 'SSH');
 		s.tab('advanced', 'Erweitert');
 
@@ -44,6 +45,26 @@ return view.extend({
 		o = s.taboption('general', form.DynamicList, 'ap_ifname', 'AP-Interfaces',
 			'z. B. phy0-ap0, phy1-ap0 – per "ubus list | grep hostapd" auf einem ' +
 			'Router gegenpruefen, falls ein anderes Namensschema verwendet wird.');
+
+		o = s.taboption('privacy', form.Value, 'retention_days',
+			'Aufbewahrungsfrist (Tage)',
+			'Geraetebezogene Daten (MAC-Adresse, Name, IP, Nickname, Roaming-' +
+			'Log-Eintraege) werden spaetestens so viele Tage nach der letzten ' +
+			'Beobachtung des jeweiligen Geraets automatisch geloescht – nicht ' +
+			'nur aus der Anzeige, sondern aus der Datenbank (Speicherbegrenzung, ' +
+			'Art. 5 Abs. 1 lit. e DSGVO). Siehe README.md, Abschnitt ' +
+			'"Datenschutz-Hinweis (DSGVO)".');
+		o.default = '7';
+		o.datatype = 'min(0)';
+
+		o = s.taboption('privacy', form.Flag, 'anonymous_stats_enabled',
+			'Anonyme Langzeit-Statistik fuehren',
+			'Fuehrt zusaetzlich eine stuendliche Zusammenfassung ohne MAC-' +
+			'Adresse (Ereignisanzahl + Ø-Signalstaerke je Router/Band) fort – ' +
+			'kein personenbezogenes Datum, darf auch nach Ablauf der ' +
+			'Aufbewahrungsfrist oben unbegrenzt fuer Trend-Analysen aufbewahrt ' +
+			'werden.');
+		o.default = '1';
 
 		o = s.taboption('ssh', form.Value, 'ssh_user', 'SSH-Benutzer');
 		o.default = 'root';

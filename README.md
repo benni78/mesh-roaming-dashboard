@@ -67,7 +67,7 @@ wird – insbesondere, wenn im Netzwerk auch Geräte anderer Personen
 ### Was dieses Tool tatsächlich erfasst
 
 Für jedes Gerät, das sich mit einem der überwachten Router verbindet,
-zeichnet der Dienst laufend und dauerhaft auf:
+zeichnet der Dienst laufend auf:
 
 - an welchem Router/Access Point (und damit an welchem Ort/Raum, sofern
   die Router-Karte entsprechend eingerichtet ist) das Gerät aktuell
@@ -76,11 +76,26 @@ zeichnet der Dienst laufend und dauerhaft auf:
   (inklusive Signalstärke – ein Näherungsmaß für die Entfernung),
 - jeden Wechsel des Access Points samt Zeitpunkt (Connect-/Roam-/
   Disconnect-Ereignisse, zentral protokolliert in einer SQLite-Datenbank,
-  die einen Dienst-Neustart überlebt und ohne eigenes Eingreifen nicht
-  automatisch geleert wird),
+  die einen Dienst-Neustart überlebt),
 - optional einen vom Betreiber vergebenen Klarnamen/Nickname pro Gerät,
-  der dauerhaft gespeichert wird und die Zuordnung Gerät → Person
-  ausdrücklich und dauerhaft herstellt.
+  der die Zuordnung Gerät → Person ausdrücklich herstellt.
+
+**Seit v22 ist das standardmäßig zeitlich begrenzt, nicht mehr
+unbegrenzt:** Die Konfigurationsoption `privacy.retention_days` (Default:
+7 Tage, per UCI/LuCI unter dem Reiter „Datenschutz" einstellbar) löscht
+alle geräte­bezogenen Daten (MAC-Adresse, Name, IP, Nickname,
+Roaming-Log-Einträge) eines Geräts automatisch und endgültig aus der
+SQLite-Datenbank, sobald es so viele Tage nicht mehr beobachtet wurde –
+nicht nur aus der Anzeige. Zusätzlich führt der Dienst (abschaltbar über
+`privacy.anonymous_stats_enabled`) eine stündliche, **MAC-freie**
+Zusammenfassung (Ereignisanzahl + Ø-Signalstärke je Router/Band) fort, die
+kein personenbezogenes Datum ist und unbegrenzt für Trend-Analysen
+aufbewahrt werden darf. Über `POST /api/erase {"mac": "..."}` lässt sich
+die Löschung für ein einzelnes Gerät jederzeit sofort auslösen (Art. 17
+DSGVO), unabhängig von der Frist. Das ändert nichts an den folgenden
+Abschnitten: **während der Aufbewahrungsfrist** entsteht weiterhin ein
+personenbezogenes Bewegungsprofil, und die Rechtsgrundlage dafür (s. u.)
+braucht es trotzdem.
 
 ### Warum das ein personenbezogenes Bewegungsprofil ist
 
@@ -148,10 +163,13 @@ Mitarbeitende ein.
   Einsatz außerhalb eines vollständig vertrauenswürdigen Heimnetzes
   zusätzliche Absicherung (z. B. Reverse-Proxy mit Authentifizierung,
   Netzwerksegmentierung) selbst ergänzen.
-- Speicherdauer aktiv begrenzen: Die Konfigurationsoption
-  `log_max_entries` begrenzt nur die in der Oberfläche angezeigte Anzahl
-  Ereignisse, **nicht** automatisch die Daten in der SQLite-Datenbank –
-  für eine echte Speicherbegrenzung eigene Löschroutinen ergänzen.
+- Speicherdauer aktiv begrenzen: `privacy.retention_days` (Default 7
+  Tage) löscht geräte­bezogene Daten automatisch aus der SQLite-Datenbank,
+  nicht nur aus der Anzeige – anders als `log_max_entries`, das weiterhin
+  nur eine Anzahl-Sicherheitsgrenze ist, keine Zeitgrenze. Frist so kurz
+  wie für den eigenen Zweck (z. B. Fehlersuche) nötig wählen; die
+  anonyme Langzeit-Statistik (`privacy.anonymous_stats_enabled`) deckt
+  Trend-Analysen über diese Frist hinaus ab, ohne Geräte-Bezug.
 - Auf die Nickname/Umbenennen-Funktion verzichten, wenn eine
   ausdrückliche Re-Identifizierung von Personen vermieden werden soll.
 - Betrieb auf den tatsächlich benötigten Personenkreis und Zeitraum
@@ -180,6 +198,10 @@ Zweifel vor dem Einsatz fachkundigen Rat einholen.
 - Clients lassen sich im UI umbenennen (Nickname), bleibt dauerhaft
   gespeichert.
 - Optional: Zusammenfassungs-Metriken per MQTT (z. B. für InfluxDB/Grafana).
+- Automatische Speicherbegrenzung (DSGVO): geräte­bezogene Daten verfallen
+  nach `privacy.retention_days` (Default 7 Tage), eine MAC-freie
+  Langzeit-Statistik bleibt für Trend-Analysen erhalten, Sofort-Löschung
+  einzelner Geräte über `POST /api/erase`.
 
 ## Architektur
 

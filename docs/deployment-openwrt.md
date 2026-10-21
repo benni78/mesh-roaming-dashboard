@@ -96,8 +96,37 @@ Ein für `opkg` korrektes `.ipk` ist für `apk` trotzdem das falsche Format
 Ist auf dem Build-Rechner kein `apk` mit `apk mkpkg` (apk-tools ≥ 3.0)
 installiert – üblich, da das kein Standardpaket vieler Linux-Distributionen
 ist –, baut das Skript nur die APK-v2-Zwischenstufe und gibt am Ende genau
-die Befehle aus, um den letzten Schritt (v2 → v3) nachzuholen, z. B. kurz
-in einem Alpine-Edge-Container:
+die Befehle aus, um den letzten Schritt (v2 → v3) nachzuholen.
+
+**Kein Docker nötig:** apk-tools ≥ 3.0 ist ein ganz normales Meson/C-Projekt
+und baut direkt auf jeder gängigen Linux-Distribution (Ubuntu, Debian,
+Fedora, …) – auch ohne OpenWrt-Buildsystem/SDK:
+
+```sh
+sudo apt install -y git meson ninja-build pkg-config liblua5.3-dev \
+                     libssl-dev libzstd-dev
+git clone https://gitlab.alpinelinux.org/alpine/apk-tools.git
+cd apk-tools
+meson setup build
+meson compile -C build
+```
+
+Danach den frisch gebauten Binary vor den `build-apk.sh`-Aufruf stellen –
+das Skript findet `apk mkpkg` dann automatisch und baut gleich bis APK v3:
+
+```sh
+PATH="$PWD/apk-tools/build/src:$PATH" ./openwrt/build-apk.sh
+```
+
+(Wer bereits ein volles OpenWrt-Buildsystem/SDK ausgecheckt hat: apk-tools
+*innerhalb* dieses Buildroots als Host-Tool zu bauen ist laut
+OpenWrt-Forum eher fehleranfällig, u. a. wegen Lua-Versionskonflikten
+zwischen `lua5.1`/`lua5.3` je nach Branch – der obige direkte Weg gegen
+den Upstream-Quellcode ist einfacher und vom OpenWrt-Checkout unabhängig.)
+
+Alternativ, falls auf dem eigenen Rechner aus anderen Gründen kein
+Compiler/Meson installiert werden soll, geht es auch kurz über einen
+Alpine-Edge-Container (enthält apk-tools 3.0+ bereits fertig gebaut):
 
 ```sh
 docker run --rm -v "$PWD":/w -w /w alpine:edge sh -c '

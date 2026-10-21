@@ -104,6 +104,27 @@ def format_provides(provides_str: str) -> List[str]:
     return result
 
 
+def _apk_arch(ipk_arch: str) -> str:
+    """Converts an IPK/opkg Architecture value to APK's arch convention.
+
+    opkg uses "all" for architecture-independent packages; APK (Alpine's
+    convention) uses "noarch" for the same concept. APK's solver matches
+    "arch" against the system's configured architecture set (e.g. x86_64,
+    aarch64, noarch, ...) - "all" is not one of the recognised values, so a
+    package left with "arch = all" is reported "uninstallable" even though
+    the package itself is otherwise fine (observed in practice: "apk add"
+    on a real OpenWrt 25.12 router rejects such a package with
+    "error: uninstallable, arch: all").
+
+    OpenWrt target-specific IPK arch names (e.g. "aarch64_cortex-a53") are
+    passed through unchanged - this tool only ever produces "all" packages
+    today, so no further translation table exists yet for those.
+    """
+    if ipk_arch == "all":
+        return "noarch"
+    return ipk_arch
+
+
 def get_directory_size(path: str) -> int:
     """Calculates the total uncompressed size of all files in a directory."""
     total_size = 0
@@ -132,7 +153,7 @@ def create_pkginfo_content(
         f"pkgname = {metadata.get('Package', 'unknown')}",
         f"pkgver = {metadata.get('Version', '1.0.0')}",
         f"pkgdesc = {metadata.get('Description', 'Converted from IPK')}",
-        f"arch = {metadata.get('Architecture', 'unknown')}",
+        f"arch = {_apk_arch(metadata.get('Architecture', 'unknown'))}",
         f"size = {data_size}",
         f"datahash = {data_hash}",
     ]
