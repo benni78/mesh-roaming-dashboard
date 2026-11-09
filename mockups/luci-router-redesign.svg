@@ -128,10 +128,10 @@
   <text x="360" y="752" class="lbl">IP-Adresse</text>
   <rect x="376" y="736" width="300" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="753" class="td">192.168.1.1</text>
 
-  <text x="360" y="788" class="lbl">Karte – Position X / Y</text>
+  <text x="360" y="788" class="lbl">Position horizontal / vertikal (px)</text>
   <rect x="376" y="772" width="90" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="789" class="td">220</text>
   <rect x="476" y="772" width="90" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="486" y="789" class="td">310</text>
-  <text x="576" y="789" class="hint">0–900 / 0–600</text>
+  <text x="576" y="785" class="hint">Karte 900 × 600 px (0/0 = oben links)</text><text x="576" y="798" class="hint">horizontal 0–900 · vertikal 0–600</text>
 
   <text x="360" y="824" class="lbl">Mesh-Management-IPs</text>
   <rect x="376" y="808" width="270" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="825" class="td">10.10.0.1</text>
