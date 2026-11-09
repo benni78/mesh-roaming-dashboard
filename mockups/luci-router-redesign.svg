@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1010" viewBox="0 0 960 1010" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="13">
+  <defs>
+    <style>
+      .h1{font-size:22px;font-weight:600;fill:#222}
+      .h2{font-size:16px;font-weight:600;fill:#222}
+      .desc{fill:#555}
+      .th{font-weight:600;fill:#333}
+      .td{fill:#222}
+      .muted{fill:#888}
+      .note{font-size:12px;fill:#b5560c}
+      .btn{font-size:12px;fill:#fff;font-weight:600}
+      .btn2{font-size:12px;fill:#333;font-weight:600}
+      .lbl{fill:#333;text-anchor:end}
+      .hint{font-size:11px;fill:#777}
+    </style>
+  </defs>
+
+  <rect width="960" height="1010" fill="#fff"/>
+
+  <!-- ========== Ansicht 1: Uebersicht ========== -->
+  <rect x="0" y="0" width="960" height="34" fill="#2c3e50"/>
+  <text x="16" y="22" fill="#fff" font-weight="600">OpenWrt</text>
+  <text x="96" y="22" fill="#cfd8dc">Status   System   Dienste   Netzwerk   VPN   Mesh Roaming ▾</text>
+
+  <text x="20" y="70" class="h1">Mesh Roaming Dashboard – Router</text>
+  <text x="20" y="94" class="desc">Ein Eintrag je Router (Instanz). „Dieser Router“ und „Deaktiviert“ lassen sich direkt in der Liste umschalten,</text>
+  <text x="20" y="112" class="desc">alle weiteren Einstellungen über „Bearbeiten“.</text>
+
+  <!-- Tabelle -->
+  <rect x="20" y="130" width="920" height="36" fill="#f3f5f7" stroke="#d9dde1"/>
+  <text x="34"  y="153" class="th"> </text>
+  <text x="56"  y="153" class="th">Name</text>
+  <text x="230" y="153" class="th">Raum</text>
+  <text x="370" y="153" class="th">IP-Adresse</text>
+  <text x="470" y="153" class="th">Dieser Router</text>
+  <text x="590" y="153" class="th">Deaktiviert</text>
+  <text x="680" y="153" class="th">Status</text>
+
+  <!-- Zeile 1 -->
+  <g>
+    <rect x="20" y="166" width="920" height="44" fill="#fff" stroke="#e3e6e9"/>
+    <text x="32" y="193" class="muted">☰</text>
+    <text x="56" y="193" class="td" font-weight="600">HiLink-RM65-A</text>
+    <text x="230" y="193" class="td">Wohnzimmer</text>
+    <text x="370" y="193" class="td">192.168.1.1</text>
+    <rect x="508" y="180" width="16" height="16" rx="3" fill="#0069d6"/><path d="M511 188 l4 4 l7 -8" stroke="#fff" stroke-width="2" fill="none"/>
+    <rect x="622" y="180" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <circle cx="686" cy="188" r="5" fill="#3aa655"/><text x="696" y="193" class="td">erreichbar</text>
+    <rect x="806" y="176" width="70" height="24" rx="3" fill="#0069d6"/><text x="841" y="192" class="btn" text-anchor="middle">Bearbeiten</text>
+    <rect x="882" y="176" width="50" height="24" rx="3" fill="#c9302c"/><text x="907" y="192" class="btn" text-anchor="middle">Löschen</text>
+  </g>
+  <!-- Zeile 2 -->
+  <g>
+    <rect x="20" y="210" width="920" height="44" fill="#fafbfc" stroke="#e3e6e9"/>
+    <text x="32" y="237" class="muted">☰</text>
+    <text x="56" y="237" class="td" font-weight="600">HiLink-RM65-B</text>
+    <text x="230" y="237" class="td">Büro</text>
+    <text x="370" y="237" class="td">192.168.1.2</text>
+    <rect x="508" y="224" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <rect x="622" y="224" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <circle cx="686" cy="232" r="5" fill="#3aa655"/><text x="696" y="237" class="td">erreichbar</text>
+    <rect x="806" y="220" width="70" height="24" rx="3" fill="#0069d6"/><text x="841" y="236" class="btn" text-anchor="middle">Bearbeiten</text>
+    <rect x="882" y="220" width="50" height="24" rx="3" fill="#c9302c"/><text x="907" y="236" class="btn" text-anchor="middle">Löschen</text>
+  </g>
+  <!-- Zeile 3 -->
+  <g>
+    <rect x="20" y="254" width="920" height="44" fill="#fff" stroke="#e3e6e9"/>
+    <text x="32" y="281" class="muted">☰</text>
+    <text x="56" y="281" class="td" font-weight="600">Archer-AX23-B</text>
+    <text x="230" y="281" class="td">Keller</text>
+    <text x="370" y="281" class="td">192.168.1.3</text>
+    <rect x="508" y="268" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <rect x="622" y="268" width="16" height="16" rx="3" fill="#0069d6"/><path d="M625 276 l4 4 l7 -8" stroke="#fff" stroke-width="2" fill="none"/>
+    <circle cx="686" cy="276" r="5" fill="#9aa0a6"/><text x="696" y="281" class="muted">deaktiviert</text>
+    <rect x="806" y="264" width="70" height="24" rx="3" fill="#0069d6"/><text x="841" y="280" class="btn" text-anchor="middle">Bearbeiten</text>
+    <rect x="882" y="264" width="50" height="24" rx="3" fill="#c9302c"/><text x="907" y="280" class="btn" text-anchor="middle">Löschen</text>
+  </g>
+  <!-- Zeile 4 -->
+  <g>
+    <rect x="20" y="298" width="920" height="44" fill="#fafbfc" stroke="#e3e6e9"/>
+    <text x="32" y="325" class="muted">☰</text>
+    <text x="56" y="325" class="td" font-weight="600">Archer-AX23-C</text>
+    <text x="230" y="325" class="td">Dachgeschoss</text>
+    <text x="370" y="325" class="td">192.168.1.4</text>
+    <rect x="508" y="312" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <rect x="622" y="312" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+    <circle cx="686" cy="320" r="5" fill="#d9534f"/><text x="696" y="325" class="td">nicht erreichbar</text>
+    <rect x="806" y="308" width="70" height="24" rx="3" fill="#0069d6"/><text x="841" y="324" class="btn" text-anchor="middle">Bearbeiten</text>
+    <rect x="882" y="308" width="50" height="24" rx="3" fill="#c9302c"/><text x="907" y="324" class="btn" text-anchor="middle">Löschen</text>
+  </g>
+
+  <!-- Neue Instanz -->
+  <rect x="20" y="342" width="920" height="52" fill="#f3f5f7" stroke="#d9dde1"/>
+  <rect x="34" y="355" width="300" height="26" rx="3" fill="#fff" stroke="#bbb"/>
+  <text x="44" y="373" class="muted">Name des neuen Routers, z. B. Gartenhaus</text>
+  <rect x="344" y="355" width="96" height="26" rx="3" fill="#3aa655"/><text x="392" y="373" class="btn" text-anchor="middle">Hinzufügen</text>
+  <text x="456" y="373" class="hint">Beliebig viele Instanzen; legt einen neuen Eintrag an und öffnet direkt „Bearbeiten“.</text>
+
+  <!-- Fusszeile -->
+  <rect x="668" y="408" width="132" height="28" rx="3" fill="#0069d6"/><text x="734" y="427" class="btn" text-anchor="middle">Speichern &amp; Anwenden</text>
+  <rect x="808" y="408" width="74" height="28" rx="3" fill="#e9ecef" stroke="#ccc"/><text x="845" y="427" class="btn2" text-anchor="middle">Speichern</text>
+  <rect x="888" y="408" width="52" height="28" rx="3" fill="#e9ecef" stroke="#ccc"/><text x="914" y="427" class="btn2" text-anchor="middle">Reset</text>
+
+  <!-- Anmerkungen -->
+  <text x="20" y="470" class="note">① ☰ = Reihenfolge per Drag &amp; Drop   ② „Dieser Router“ ist exklusiv: Ankreuzen entfernt den Haken bei allen anderen   ③ Status nur lesend</text>
+
+  <!-- Verbindung zur Detailansicht -->
+  <path d="M480 486 L480 540" stroke="#b5560c" stroke-width="1.5" stroke-dasharray="5 4" fill="none"/>
+  <path d="M474 532 L480 544 L486 532" stroke="#b5560c" stroke-width="1.5" fill="none"/>
+  <text x="494" y="518" class="note">Klick auf „Bearbeiten“ öffnet den Dialog</text>
+
+  <!-- ========== Ansicht 2: Bearbeiten-Dialog ========== -->
+  <rect x="0" y="550" width="960" height="460" fill="#000" opacity="0.08"/>
+  <rect x="160" y="566" width="640" height="428" rx="6" fill="#fff" stroke="#c8ccd0"/>
+  <text x="184" y="600" class="h2">Router bearbeiten: HiLink-RM65-A</text>
+  <line x1="160" y1="614" x2="800" y2="614" stroke="#e3e6e9"/>
+
+  <text x="360" y="644" class="lbl">ID</text>
+  <rect x="376" y="628" width="300" height="24" rx="3" fill="#f1f1f1" stroke="#ccc"/><text x="386" y="645" class="muted">router-wohnzimmer</text>
+  <text x="684" y="645" class="hint">nach Anlage fix</text>
+
+  <text x="360" y="680" class="lbl">Name</text>
+  <rect x="376" y="664" width="300" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="681" class="td">HiLink-RM65-A</text>
+
+  <text x="360" y="716" class="lbl">Raum</text>
+  <rect x="376" y="700" width="300" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="717" class="td">Wohnzimmer</text>
+
+  <text x="360" y="752" class="lbl">IP-Adresse</text>
+  <rect x="376" y="736" width="300" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="753" class="td">192.168.1.1</text>
+
+  <text x="360" y="788" class="lbl">Position horizontal / vertikal (px)</text>
+  <rect x="376" y="772" width="90" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="789" class="td">220</text>
+  <rect x="476" y="772" width="90" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="486" y="789" class="td">310</text>
+  <text x="576" y="785" class="hint">Karte 900 × 600 px (0/0 = oben links)</text><text x="576" y="798" class="hint">horizontal 0–900 · vertikal 0–600</text>
+
+  <text x="360" y="824" class="lbl">Mesh-Management-IPs</text>
+  <rect x="376" y="808" width="270" height="24" rx="3" fill="#fff" stroke="#bbb"/><text x="386" y="825" class="td">10.10.0.1</text>
+  <rect x="652" y="808" width="24" height="24" rx="3" fill="#3aa655"/><text x="664" y="825" class="btn" text-anchor="middle">+</text>
+
+  <text x="360" y="860" class="lbl">Dieser Router</text>
+  <rect x="376" y="846" width="16" height="16" rx="3" fill="#0069d6"/><path d="M379 854 l4 4 l7 -8" stroke="#fff" stroke-width="2" fill="none"/>
+
+  <text x="360" y="892" class="lbl">Deaktiviert</text>
+  <rect x="376" y="878" width="16" height="16" rx="3" fill="#fff" stroke="#999"/>
+
+  <line x1="160" y1="922" x2="800" y2="922" stroke="#e3e6e9"/>
+  <rect x="610" y="944" width="80" height="28" rx="3" fill="#e9ecef" stroke="#ccc"/><text x="650" y="963" class="btn2" text-anchor="middle">Abbrechen</text>
+  <rect x="700" y="944" width="80" height="28" rx="3" fill="#0069d6"/><text x="740" y="963" class="btn" text-anchor="middle">Übernehmen</text>
+</svg>
