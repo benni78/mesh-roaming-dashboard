@@ -1,41 +1,6 @@
 # Mesh Roaming Dashboard
 
-A self-hosted, live dashboard for OpenWrt-based WiFi mesh networks (usteer):
-a floor-plan map showing which router each client is connected to, roaming
-history, signal strength and per-radio channel utilization — in your
-browser, updated in real time. No cloud, no app, just one Python service
-polling your routers over SSH.
-
-Runs as a small Python 3 (standard-library only) service, either directly
-on a Raspberry Pi (e.g. alongside openHAB — see
-[`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md))
-or on OpenWrt itself. Everything network-specific (routers, IPs, SSIDs,
-floor-plan layout, thresholds) lives in one `config.json` — the service and
-the web page stay the same for any mesh. See
-[`examples/config.example.json`](examples/config.example.json) for the
-format.
-
-Two deployment variants are available: Raspbian/Debian (openHAB-friendly,
-see above) and an OpenWrt-router-hosted variant that runs directly on a
-mesh router instead of a separate Pi, with an optional LuCI configuration
-page — see
-[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md) and the
-[`openwrt/`](openwrt) directory.
-
-**⚠ Privacy / GDPR notice:** this tool tracks, for every device on your
-network, which router/room it is near and when it moves between them,
-and stores that history persistently. If devices are tied to individuals
-(phones usually are), this is personal movement-profile data about real
-people — not just about "your network". Operating this requires a legal
-basis under the GDPR/DSGVO (and any other applicable law) for everyone
-whose devices appear, not only the operator. See the German section
-"Datenschutz-Hinweis (DSGVO)" below for the full explanation — this is
-not legal advice.
-
-The documentation below is in German, matching the project's origin; code
-comments are German throughout.
-
----
+**Deutsch** · [English](README.en.md)
 
 ## Was ist das?
 
@@ -50,7 +15,15 @@ einem Raspberry Pi (z. B. neben openHAB, siehe
 [`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md))
 oder direkt auf OpenWrt. Alles Netzwerkspezifische (Router, IPs, SSIDs,
 Kartenlayout, Schwellwerte) steckt in einer `config.json` – Dienst und
-Webseite bleiben für jedes Mesh identisch gleich.
+Webseite bleiben für jedes Mesh identisch gleich. Das Format zeigt
+[`examples/config.example.json`](examples/config.example.json).
+
+Es gibt zwei Betriebsvarianten: Raspbian/Debian (gut neben openHAB, siehe
+oben) und direkt auf einem Mesh-Router statt auf einem separaten Pi, mit
+optionaler LuCI-Konfigurationsseite – siehe
+[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md) und den Ordner
+[`openwrt/`](openwrt). Die Dokumentation unter `docs/` und die
+Code-Kommentare sind auf Deutsch.
 
 ![Beispiel-Ansicht des Dashboards mit vier Routern, Clients, Roaming-Log und Kanalauslastung](docs/images/dashboard-beispiel.png)
 
@@ -278,6 +251,7 @@ Zweifel vor dem Einsatz fachkundigen Rat einholen.
   für das OpenWrt-Paket (Grundeinstellungen, Router, SSID-Farben).
 - `openwrt/build-ipk.sh` – baut aus beiden Paketquellen installierbare
   `.ipk`-Dateien (ohne OpenWrt-SDK).
+- `packages/` – fertig gebaute Pakete der aktuellen Version.
 
 Voraussetzung auf den Routern: OpenWrt mit `usteer` und `hostapd`
 (Standard bei den meisten aktuellen Mesh-Setups).
@@ -324,7 +298,7 @@ OpenWrt-Paketquellen, deshalb vorher `apk update` bzw. `opkg update`.
 OpenWrt-Schlüssel signiert sind. Die `.apk`-Dateien sind im Format APK v2
 gebaut und auf OpenWrt 25.12.6 (x86/64) getestet; die `.ipk`-Dateien
 wurden nicht gegen ein echtes `opkg` getestet. Danach in LuCI unter
-*Dienste → Mesh Roaming* die Router eintragen.
+*Dienste → Mesh Roaming Dashboard* die Router eintragen.
 
 ### Selbst bauen
 
