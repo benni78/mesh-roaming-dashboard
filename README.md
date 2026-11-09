@@ -290,6 +290,44 @@ Voraussetzung auf den Routern: OpenWrt mit `usteer` und `hostapd`
 Paketformat, nicht nur ein anderer Befehl. Ein `.ipk` lässt sich bei `apk`
 grundsätzlich nicht installieren.
 
+### Fertige Pakete (ohne selbst zu bauen)
+
+Im Ordner [`packages/`](packages/) liegen fertig gebaute Pakete der
+aktuellen Version (Architektur `all`, laufen auf jedem Target):
+
+| Datei | für |
+|---|---|
+| `mesh-roaming_1.1-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.1-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.1-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.1-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+
+```sh
+# auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
+scp -O packages/*_1.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+
+# auf dem Router (apk, OpenWrt 25.12+)
+cd /tmp
+grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
+apk update
+apk add --allow-untrusted ./mesh-roaming_1.1-r1_all.apk ./luci-app-mesh-roaming_1.1-r1_all.apk
+
+# bzw. auf dem Router (opkg, bis OpenWrt 24.10)
+opkg update
+opkg install ./mesh-roaming_1.1-r1_all.ipk ./luci-app-mesh-roaming_1.1-r1_all.ipk
+```
+
+Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
+`luci-base`, `rpcd`) holt der Paketmanager selbst aus den
+OpenWrt-Paketquellen, deshalb vorher `apk update` bzw. `opkg update`.
+`--allow-untrusted` ist nötig, weil die Pakete nicht mit einem
+OpenWrt-Schlüssel signiert sind. Die `.apk`-Dateien sind im Format APK v2
+gebaut und auf OpenWrt 25.12.6 (x86/64) getestet; die `.ipk`-Dateien
+wurden nicht gegen ein echtes `opkg` getestet. Danach in LuCI unter
+*Dienste → Mesh Roaming* die Router eintragen.
+
+### Selbst bauen
+
 ```sh
 cd openwrt
 ./build-ipk.sh

@@ -6,6 +6,6 @@ id_ed25519
 id_ed25519.pub
 known_hosts
 
-# Gebaute .ipk-Dateien sind Build-Artefakte, kein Quellcode - mit
-# openwrt/build-ipk.sh selbst erzeugen.
+# Build-Ausgabe von openwrt/build-ipk.sh/build-apk.sh. Fertige Pakete der
+# aktuellen Version werden bewusst in packages/ eingecheckt (siehe README).
 openwrt/dist/

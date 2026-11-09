@@ -1,0 +1,4 @@
+# Fertige Pakete unveraendert einchecken (keine Zeilenende-Umwandlung)
+*.apk binary
+*.ipk binary
+packages/SHA256SUMS text eol=lf
