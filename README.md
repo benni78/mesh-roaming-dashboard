@@ -78,7 +78,12 @@ zeichnet der Dienst laufend auf:
   Disconnect-Ereignisse, zentral protokolliert in einer SQLite-Datenbank,
   die einen Dienst-Neustart überlebt),
 - optional einen vom Betreiber vergebenen Klarnamen/Nickname pro Gerät,
-  der die Zuordnung Gerät → Person ausdrücklich herstellt.
+  der die Zuordnung Gerät → Person ausdrücklich herstellt,
+- aus den DHCP-Leases und der ARP-Tabelle der Router Hostname und IP-Adresse
+  **aller** Geräte im Netz, auch kabelgebundener. Hostnamen enthalten oft
+  schon einen Personennamen („Annas-iPhone“). Gespeichert werden sie nur für
+  die Aufbewahrungsfrist; an die Weboberfläche gehen nur die Hostnamen der
+  Geräte, die die Karte tatsächlich anzeigt, IP-Adressen gar nicht.
 
 **Seit v22 ist das standardmäßig zeitlich begrenzt, nicht mehr
 unbegrenzt:** Die Konfigurationsoption `privacy.retention_days` (Default:
@@ -89,8 +94,10 @@ SQLite-Datenbank, sobald es so viele Tage nicht mehr beobachtet wurde –
 nicht nur aus der Anzeige. Zusätzlich führt der Dienst (abschaltbar über
 `privacy.anonymous_stats_enabled`) eine stündliche, **MAC-freie**
 Zusammenfassung (Ereignisanzahl + Ø-Signalstärke je Router/Band) fort, die
-kein personenbezogenes Datum ist und unbegrenzt für Trend-Analysen
-aufbewahrt werden darf. Über `POST /api/erase {"mac": "..."}` lässt sich
+unbegrenzt aufbewahrt wird. **Achtung:** In einem kleinen Haushalt ist diese
+Statistik nicht zuverlässig anonym – wohnt dort nur eine Person, zeigt
+„Connect um 23 Uhr am Router Schlafzimmer“ auch ohne MAC-Adresse, wann
+diese Person wo war (siehe „Bekannte Grenzen“ unten). Über `POST /api/erase {"mac": "..."}` lässt sich
 die Löschung für ein einzelnes Gerät jederzeit sofort auslösen (Art. 17
 DSGVO), unabhängig von der Frist. Das ändert nichts an den folgenden
 Abschnitten: **während der Aufbewahrungsfrist** entsteht weiterhin ein
@@ -156,20 +163,23 @@ Mitarbeitende ein.
 - Alle Personen, deren Geräte das überwachte WLAN nutzen (könnten), vor
   Inbetriebnahme aktiv informieren und – wo möglich – deren Einwilligung
   einholen; keine heimliche Überwachung.
-- Zugriff auf das Dashboard und auf die SQLite-Datenbank technisch
-  einschränken: Der Dienst ist bewusst **ohne Zugriffsschutz**
-  ausgelegt (jeder im Netzwerk kann `/data.json` abrufen, s. Abschnitt
-  "Offene Punkte" in der internen Projektdokumentation) – für den
-  Einsatz außerhalb eines vollständig vertrauenswürdigen Heimnetzes
-  zusätzliche Absicherung (z. B. Reverse-Proxy mit Authentifizierung,
-  Netzwerksegmentierung) selbst ergänzen.
+- Zugriff auf das Dashboard einschränken: Der Dienst hat **keine
+  Anmeldung** (siehe „Bekannte Grenzen“). Den Port (Standard 8765) nur aus
+  dem vertrauenswürdigen Netz erreichbar machen, z. B. `http.bind` bzw.
+  UCI `bind` auf die LAN-IP setzen statt `0.0.0.0` und sicherstellen, dass
+  Gast-WLAN/IoT-Netze per Firewall keinen Zugriff auf den Router bzw. Pi
+  haben. Für mehr Schutz einen Reverse-Proxy mit Authentifizierung
+  vorschalten.
 - Speicherdauer aktiv begrenzen: `privacy.retention_days` (Default 7
   Tage) löscht geräte­bezogene Daten automatisch aus der SQLite-Datenbank,
   nicht nur aus der Anzeige – anders als `log_max_entries`, das weiterhin
   nur eine Anzahl-Sicherheitsgrenze ist, keine Zeitgrenze. Frist so kurz
-  wie für den eigenen Zweck (z. B. Fehlersuche) nötig wählen; die
-  anonyme Langzeit-Statistik (`privacy.anonymous_stats_enabled`) deckt
-  Trend-Analysen über diese Frist hinaus ab, ohne Geräte-Bezug.
+  wie für den eigenen Zweck (z. B. Fehlersuche) nötig wählen.
+- In kleinen Haushalten `privacy.anonymous_stats_enabled` abschalten, wenn
+  keine Langzeit-Trends gebraucht werden.
+- Bei aktivem MQTT auch die Aufbewahrung in openHAB/InfluxDB begrenzen
+  (Retention Policy), denn dort landet die Client-Anzahl je Router
+  dauerhaft – und damit, wer wann in welchem Raum war.
 - Auf die Nickname/Umbenennen-Funktion verzichten, wenn eine
   ausdrückliche Re-Identifizierung von Personen vermieden werden soll.
 - Betrieb auf den tatsächlich benötigten Personenkreis und Zeitraum
@@ -177,6 +187,51 @@ Mitarbeitende ein.
 - Bei jedem Einsatz außerhalb eines rein privaten, familiären Haushalts
   (siehe Haushaltsausnahme oben) vorab rechtlichen Rat (Datenschutz-
   beauftragte/r, Rechtsanwalt/Rechtsanwältin) einholen.
+
+### Technische Schutzmaßnahmen (Stand 1.1)
+
+- **Speicherbegrenzung:** geräte­bezogene Daten werden nach
+  `privacy.retention_days` ohne Beobachtung aus der Datenbank gelöscht,
+  einzelne Geräte sofort über `POST /api/erase`. SQLite läuft mit
+  `secure_delete`, gelöschte Daten bleiben also nicht als Reste in der
+  Datei stehen.
+- **Dateirechte:** Datenbank, `config.json` (enthält ggf. das
+  MQTT-Passwort), `known_hosts` und die MQTT-Optionsdatei sind nur für den
+  Dienst lesbar (0600).
+- **Keine Drittanbieter:** Die Weboberfläche lädt keine externen Schriften,
+  Skripte oder CDNs – der Browser der Betrachter spricht nur mit dem
+  Dienst selbst.
+- **Datenminimierung in der Ausgabe:** `/data.json` enthält keine
+  IP-Adressen und Hostnamen nur für Geräte, die auf der Karte erscheinen.
+  `/config.json` und `/api/status` (Statusspalte in LuCI) enthalten keine
+  Gerätedaten.
+- **Schutz gegen fremde Webseiten (CSRF):** `POST /api/rename` und
+  `/api/erase` nehmen nur Anfragen mit `Content-Type: application/json`
+  und passender Herkunft an. Eine fremde Webseite, die jemand im Heimnetz
+  aufruft, kann also keine Geräte umbenennen oder Daten löschen.
+  Kommandozeile: `curl -H 'Content-Type: application/json' -d
+  '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
+- **MQTT:** übertragen werden nur Summen (Clients je Router, Länge des
+  Ereignis-Logs), keine MAC-Adressen oder Namen. Zugangsdaten stehen nicht
+  in der Prozessliste; TLS ist möglich und bei einem Broker außerhalb des
+  Routers/Pis empfohlen.
+- **Keine Zugriffsprotokolle:** Der Webserver protokolliert keine Aufrufe
+  (keine IP-Adressen der Betrachter im Log).
+
+### Bekannte Grenzen
+
+- **Keine Anmeldung:** Wer den Port erreicht, sieht live, welches Gerät in
+  welchem Raum ist, und kann Geräte umbenennen oder ihre Daten löschen.
+  Schutz nur über Netzwerk/Firewall bzw. Reverse-Proxy (siehe oben).
+- **Anonyme Statistik:** wird unbegrenzt aufbewahrt und ist in kleinen
+  Haushalten auf einzelne Personen rückführbar.
+- **Löschen eines verbundenen Geräts:** `POST /api/erase` löscht die
+  gespeicherten Daten, ein weiterhin verbundenes Gerät wird beim nächsten
+  Abruf aber wieder erfasst. Dauerhaft hilft nur, das Gerät aus dem
+  überwachten WLAN zu nehmen.
+- **Router-Zugang:** Der Dienst meldet sich per SSH als `root` mit einem
+  Schlüssel an allen Routern an. Wer den Schlüssel hat, hat die Router –
+  Datei nur für root lesbar halten (`chmod 600`).
 
 **Dieser Abschnitt ersetzt keine Rechtsberatung.** Die tatsächliche
 datenschutzrechtliche Bewertung hängt vom konkreten Einzelfall ab

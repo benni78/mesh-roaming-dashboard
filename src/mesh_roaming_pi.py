@@ -507,10 +507,20 @@ class Store:
         if d:
             os.makedirs(d, exist_ok=True)
         self.conn = sqlite3.connect(path, check_same_thread=False)
+        # Geloeschte personenbezogene Daten auch physisch ueberschreiben statt
+        # sie nur als freie Seiten in der Datei liegen zu lassen.
+        self.conn.execute("PRAGMA secure_delete=ON")
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.execute("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
         self.conn.commit()
+        # Die Datenbank enthaelt personenbezogene Daten - nur fuer den Dienst
+        # lesbar, auch wenn sie von einer aelteren Version mit 0644 stammt.
+        for suffix in ("", "-wal", "-shm"):
+            try:
+                os.chmod(path + suffix, 0o600)
+            except OSError:
+                pass
         self.lock = threading.Lock()
 
     def get_json(self, key, default):
@@ -885,10 +895,18 @@ class MeshState:
             for rid in ROUTERS:
                 rr = self.routers.get(rid) or {}
                 router_status[rid] = rr.get("error", "ok") if "error" in rr else "ok"
+            # Datenminimierung: Hostnamen nur fuer Geraete, die die Karte
+            # tatsaechlich anzeigt (aktuell im WLAN oder im Ereignis-Log) -
+            # nicht fuer jedes Geraet aus den DHCP-Leases (auch kabelgebundene).
+            # IP-Adressen braucht die Seite gar nicht, sie werden nur intern
+            # (Speicherbegrenzung) gefuehrt.
+            shown = set(self.last_seen) | {e.get("mac") for e in self.log} | set(self.nicknames)
+            for rr in self.routers.values():
+                for macs in ((rr or {}).get("usteer_raw") or {}).keys():
+                    shown.add(str(macs).lower())
             return {
                 "routers": self.routers,
-                "names": self.names,
-                "ips": self.ips,
+                "names": {mac: n for mac, n in self.names.items() if mac in shown},
                 "nicknames": self.nicknames,
                 "log": self.log,
                 "channelUtil": self.util_latest,
@@ -1096,8 +1114,29 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
 
+    def _post_allowed(self):
+        # Schutz gegen CSRF: Ohne diese Pruefung koennte jede beliebige
+        # Webseite, die jemand im Heimnetz aufruft, per Formular/fetch
+        # Geraete umbenennen oder Daten loeschen. "application/json" erzwingt
+        # im Browser einen CORS-Preflight (den dieser Server nie erlaubt), ein
+        # mitgeschicktes Origin muss zum eigenen Host passen.
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        if ctype != "application/json":
+            return False
+        origin = self.headers.get("Origin")
+        if origin and origin != "null":
+            host = self.headers.get("Host") or ""
+            if urllib.parse.urlparse(origin).netloc.lower() != host.lower():
+                return False
+        elif origin == "null":
+            return False
+        return True
+
     def do_POST(self):
         path = urllib.parse.urlparse(self.path).path
+        if path in ("/api/rename", "/api/erase") and not self._post_allowed():
+            self._send_json({"ok": False, "error": "Anfrage abgelehnt (Content-Type/Origin)"}, status=403)
+            return
         if path == "/api/rename":
             length = int(self.headers.get("Content-Length") or "0")
             raw = self.rfile.read(length) if length else b"{}"
@@ -1169,6 +1208,9 @@ def main():
     global MQTT_TLS, MQTT_TLS_CAFILE, MQTT_TLS_CAPATH, MQTT_TLS_INSECURE
     global RETENTION_MS, STATS_ENABLED
 
+    # Alle vom Dienst angelegten Dateien (SQLite-DB, known_hosts,
+    # MQTT-Optionsdatei) nur fuer den Dienst selbst lesbar.
+    os.umask(0o077)
     CONFIG = load_config(CONFIG_PATH)
 
     ROUTERS = {r["id"]: r for r in CONFIG["routers"]}
