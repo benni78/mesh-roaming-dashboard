@@ -92,7 +92,14 @@
 
   "mqtt": {
     "broker": null,
+    "port": null,
     "base_topic": "mesh-roaming",
-    "publish_interval_sec": 10
+    "publish_interval_sec": 10,
+    "username": null,
+    "password": null,
+    "tls": false,
+    "tls_cafile": null,
+    "tls_capath": "/etc/ssl/certs",
+    "tls_insecure": false
   }
 }

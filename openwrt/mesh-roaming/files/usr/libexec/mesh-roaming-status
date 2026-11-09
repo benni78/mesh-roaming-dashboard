@@ -1,0 +1,20 @@
+#!/bin/sh
+# Gibt die Erreichbarkeit je Router als JSON aus (GET /api/status des
+# laufenden Dienstes, ohne geraetebezogene Daten). Wird von
+# luci-app-mesh-roaming (Seite "Router", Spalte "Status") ueber rpcd
+# aufgerufen - so braucht der Browser keinen direkten Zugriff auf den
+# Dienst-Port (kein CORS/Mixed-Content-Problem bei LuCI ueber HTTPS).
+
+. /lib/functions.sh
+
+config_load mesh-roaming
+config_get port main port 8765
+config_get bind main bind 0.0.0.0
+
+case "$bind" in
+	''|0.0.0.0|::) host=127.0.0.1 ;;
+	*:*) host="[$bind]" ;;
+	*) host="$bind" ;;
+esac
+
+exec uclient-fetch -q -T 3 -O - "http://$host:$port/api/status"

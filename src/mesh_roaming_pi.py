@@ -26,7 +26,8 @@ Was der Dienst macht:
 - Liefert per HTTP: "/" die Live-Seite (mesh-lageplan-live.html im selben
   Ordner), "/config.json" die netzwerkspezifischen Anzeige-Parameter
   (Router/Kartenlayout/Schwellwerte) fuer die Seite, "/data.json" den
-  aktuellen Live-Snapshot, "POST /api/rename" zum Umbenennen eines Clients,
+  aktuellen Live-Snapshot, "/api/status" nur die Erreichbarkeit je Router
+  (ohne Geraetedaten), "POST /api/rename" zum Umbenennen eines Clients,
   "POST /api/erase" zum sofortigen Loeschen aller Daten einer MAC-Adresse
   (Art. 17 DSGVO).
 - Begrenzt die Aufbewahrung personenbezogener, geraetebezogener Daten
@@ -36,7 +37,8 @@ Was der Dienst macht:
   fort, die fuer Langzeit-Trendanalysen unbegrenzt aufbewahrt werden darf -
   siehe README.md, Abschnitt "Datenschutz-Hinweis (DSGVO)".
 - Optional (nur wenn mqtt.broker in der Konfiguration gesetzt ist):
-  veroeffentlicht einfache Zusammenfassungs-Metriken per MQTT, z.B. um sie
+  veroeffentlicht einfache Zusammenfassungs-Metriken per MQTT (optional mit
+  Benutzername/Passwort und TLS, ueber mosquitto_pub), z.B. um sie
   wie andere Smarthome-Metriken ueber openHAB in InfluxDB/Grafana
   weiterzuverarbeiten. Die Kernvisualisierung bleibt bewusst AUSSERHALB
   von InfluxDB.
@@ -52,6 +54,7 @@ import errno
 import json
 import os
 import re
+import shutil
 import signal
 import socket
 import sqlite3
@@ -163,7 +166,21 @@ DEFAULT_CONFIG = {
         },
     },
     "routers": [],
-    "mqtt": {"broker": None, "base_topic": "mesh-roaming", "publish_interval_sec": 10},
+    # Benutzername/Passwort und TLS sind optional - leer/None = anonym bzw.
+    # unverschluesselt. "port": None = Standardport (1883, mit TLS 8883).
+    # "tls_cafile": None = System-Zertifikate aus "tls_capath" verwenden.
+    "mqtt": {
+        "broker": None,
+        "port": None,
+        "base_topic": "mesh-roaming",
+        "publish_interval_sec": 10,
+        "username": None,
+        "password": None,
+        "tls": False,
+        "tls_cafile": None,
+        "tls_capath": "/etc/ssl/certs",
+        "tls_insecure": False,
+    },
 }
 
 
@@ -251,8 +268,15 @@ RUNTIME_DIR = "/run/mesh-roaming"
 HTML_PATH = ""
 LOG_MAX = 200
 MQTT_BROKER = None
+MQTT_PORT = None
 MQTT_BASE_TOPIC = "mesh-roaming"
 MQTT_PUBLISH_INTERVAL_SEC = 10.0
+MQTT_USERNAME = None
+MQTT_PASSWORD = None
+MQTT_TLS = False
+MQTT_TLS_CAFILE = None
+MQTT_TLS_CAPATH = "/etc/ssl/certs"
+MQTT_TLS_INSECURE = False
 
 STATE = None  # wird in main() gesetzt
 
@@ -874,6 +898,19 @@ class MeshState:
                 },
             }
 
+    def status(self):
+        """Nur der Erreichbarkeitsstatus je Router - ohne geraetebezogene
+        Daten (fuer die Statusspalte in luci-app-mesh-roaming)."""
+        with self.lock:
+            router_status = {}
+            for rid in ROUTERS:
+                rr = self.routers.get(rid) or {}
+                router_status[rid] = rr["error"] if "error" in rr else "ok"
+            return {
+                "generatedAt": int(max(self.generated_at.values()) * 1000) if self.generated_at else 0,
+                "routerStatus": router_status,
+            }
+
     def client_counts_per_router(self):
         with self.lock:
             return {rid: len(self._flat_clients(self.routers.get(rid))) for rid in ROUTERS}
@@ -916,23 +953,87 @@ def router_worker(rid, ip, stop_event, local=False):
 
 # ---- Optionale MQTT-Zusammenfassung --------------------------------------
 
+# Benutzername/Passwort gehen bewusst NICHT als Argument an mosquitto_pub
+# (-u/-P), sonst waeren sie fuer jeden lokalen Nutzer in "ps" bzw.
+# /proc/<pid>/cmdline sichtbar. Stattdessen landen sie in einer nur fuer den
+# Dienst lesbaren Optionsdatei "$XDG_CONFIG_HOME/mosquitto_pub", die
+# mosquitto_pub von selbst als Standardoptionen einliest (eine Option je
+# Zeile, der Rest der Zeile ist der Wert - Leerzeichen im Passwort sind ok).
+MQTT_OPTIONS_DIR = None   # wird in mqtt_prepare_options() gesetzt
+_MQTT_ERROR_LOG_INTERVAL_SEC = 60.0
+
+
+def mqtt_prepare_options():
+    global MQTT_OPTIONS_DIR
+    MQTT_OPTIONS_DIR = os.path.join(RUNTIME_DIR, "mqtt")
+    options_path = os.path.join(MQTT_OPTIONS_DIR, "mosquitto_pub")
+    if not MQTT_USERNAME:
+        # Keine Anmeldung - eine evtl. alte Optionsdatei mit Zugangsdaten
+        # darf nicht weiter benutzt werden.
+        try:
+            os.remove(options_path)
+        except FileNotFoundError:
+            pass
+        return
+    for value in (MQTT_USERNAME, MQTT_PASSWORD or ""):
+        if "\n" in value or "\r" in value:
+            raise SystemExit("MQTT-Benutzername/-Passwort darf keinen Zeilenumbruch enthalten.")
+    os.makedirs(MQTT_OPTIONS_DIR, mode=0o700, exist_ok=True)
+    os.chmod(MQTT_OPTIONS_DIR, 0o700)
+    lines = ["-u %s" % MQTT_USERNAME]
+    if MQTT_PASSWORD:
+        lines.append("-P %s" % MQTT_PASSWORD)
+    tmp_path = options_path + ".tmp"
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.replace(tmp_path, options_path)
+
+
+def mqtt_base_cmd():
+    cmd = ["mosquitto_pub", "-h", MQTT_BROKER]
+    if MQTT_PORT:
+        cmd += ["-p", str(MQTT_PORT)]
+    if MQTT_TLS:
+        if MQTT_TLS_CAFILE:
+            cmd += ["--cafile", MQTT_TLS_CAFILE]
+        else:
+            cmd += ["--capath", MQTT_TLS_CAPATH]
+        if MQTT_TLS_INSECURE:
+            cmd.append("--insecure")
+    return cmd
+
+
 def mqtt_publisher(stop_event):
     if not MQTT_BROKER:
         return
+    base_cmd = mqtt_base_cmd()
+    env = dict(os.environ, XDG_CONFIG_HOME=MQTT_OPTIONS_DIR)
+    last_error_log = 0.0
+
+    def publish(topic, payload):
+        proc = subprocess.run(
+            base_cmd + ["-t", topic, "-m", payload],
+            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            text=True, timeout=5, check=False, env=env,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError((proc.stderr or "").strip() or "Exit-Code %d" % proc.returncode)
+
     while not stop_event.is_set():
         try:
             counts = STATE.client_counts_per_router()
             for rid, n in counts.items():
-                subprocess.run(
-                    ["mosquitto_pub", "-h", MQTT_BROKER, "-t", "%s/%s/clients" % (MQTT_BASE_TOPIC, rid), "-m", str(n)],
-                    timeout=3, check=False,
-                )
-            subprocess.run(
-                ["mosquitto_pub", "-h", MQTT_BROKER, "-t", "%s/roam_events_total" % MQTT_BASE_TOPIC, "-m", str(STATE.log_len())],
-                timeout=3, check=False,
-            )
-        except Exception:
-            pass
+                publish("%s/%s/clients" % (MQTT_BASE_TOPIC, rid), str(n))
+            publish("%s/roam_events_total" % MQTT_BASE_TOPIC, str(STATE.log_len()))
+        except Exception as e:
+            # Fehler (falsches Passwort, Broker weg, Zertifikat ungueltig)
+            # sichtbar machen, aber hoechstens einmal pro Minute ins Log.
+            now = time.monotonic()
+            if now - last_error_log >= _MQTT_ERROR_LOG_INTERVAL_SEC:
+                last_error_log = now
+                print("MQTT-Veroeffentlichung an %s fehlgeschlagen: %s" % (MQTT_BROKER, e),
+                      file=sys.stderr, flush=True)
         stop_event.wait(MQTT_PUBLISH_INTERVAL_SEC)
 
 
@@ -990,6 +1091,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(public_config())
         elif path == "/data.json":
             self._send_json(STATE.snapshot())
+        elif path == "/api/status":
+            self._send_json(STATE.status())
         else:
             self.send_error(404)
 
@@ -1061,7 +1164,9 @@ def main():
     global SSH_USER, SSH_KEY, SSH_CONNECT_TIMEOUT, SSH_COMMAND_TIMEOUT
     global USE_CONTROL_MASTER, CONTROL_PERSIST, POLL_INTERVAL_SEC
     global HTTP_BIND, HTTP_PORT, DB_PATH, RUNTIME_DIR, HTML_PATH, LOG_MAX
-    global MQTT_BROKER, MQTT_BASE_TOPIC, MQTT_PUBLISH_INTERVAL_SEC
+    global MQTT_BROKER, MQTT_PORT, MQTT_BASE_TOPIC, MQTT_PUBLISH_INTERVAL_SEC
+    global MQTT_USERNAME, MQTT_PASSWORD
+    global MQTT_TLS, MQTT_TLS_CAFILE, MQTT_TLS_CAPATH, MQTT_TLS_INSECURE
     global RETENTION_MS, STATS_ENABLED
 
     CONFIG = load_config(CONFIG_PATH)
@@ -1092,14 +1197,31 @@ def main():
     RETENTION_MS = int(CONFIG["privacy"]["retention_days"]) * 86400_000
     STATS_ENABLED = bool(CONFIG["privacy"]["anonymous_stats_enabled"])
 
-    MQTT_BROKER = CONFIG["mqtt"].get("broker") or None
-    MQTT_BASE_TOPIC = CONFIG["mqtt"]["base_topic"]
-    MQTT_PUBLISH_INTERVAL_SEC = float(CONFIG["mqtt"]["publish_interval_sec"])
+    mqtt = CONFIG["mqtt"]
+    MQTT_BROKER = mqtt.get("broker") or None
+    MQTT_PORT = int(mqtt["port"]) if mqtt.get("port") else None
+    MQTT_BASE_TOPIC = mqtt["base_topic"]
+    MQTT_PUBLISH_INTERVAL_SEC = float(mqtt["publish_interval_sec"])
+    MQTT_USERNAME = mqtt.get("username") or None
+    MQTT_PASSWORD = mqtt.get("password") or None
+    MQTT_TLS = bool(mqtt.get("tls"))
+    MQTT_TLS_CAFILE = mqtt.get("tls_cafile") or None
+    MQTT_TLS_CAPATH = mqtt.get("tls_capath") or "/etc/ssl/certs"
+    MQTT_TLS_INSECURE = bool(mqtt.get("tls_insecure"))
 
     store = Store(DB_PATH)
     STATE = MeshState(store)
 
     os.makedirs(RUNTIME_DIR, exist_ok=True)
+    mqtt_prepare_options()
+    if MQTT_BROKER and not shutil.which("mosquitto_pub"):
+        print(
+            "WARNUNG: MQTT-Broker %s konfiguriert, aber mosquitto_pub nicht gefunden - "
+            "MQTT bleibt aus (OpenWrt: apk add mosquitto-client-ssl, "
+            "Debian/Raspbian: apt install mosquitto-clients)." % MQTT_BROKER,
+            file=sys.stderr, flush=True,
+        )
+        MQTT_BROKER = None
 
     stop_event = threading.Event()
     threads = []

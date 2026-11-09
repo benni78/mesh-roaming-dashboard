@@ -1,5 +1,5 @@
 Package: luci-app-mesh-roaming
-Version: 1.0-r2
+Version: 1.1-r1
 Architecture: all
 Section: luci
 Category: LuCI

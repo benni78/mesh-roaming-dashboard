@@ -193,11 +193,26 @@ ist:
 *Dienste → Mesh Roaming Dashboard* in der LuCI-Oberfläche:
 
 - **Grundeinstellungen** – Bind-Adresse/Port, SSH-Zugangsdaten, Schwellwerte,
-  Kartenlayout, Standard-SSID-Farbreihenfolge, MQTT (optional).
-- **Router** – pro Router: `ID` (frei wählbar, z. B. `router-wohnzimmer`,
-  danach nicht mehr ändern), `Name` (Überschrift auf der Karte), `Raum`
-  (kleiner Untertitel), `IP-Adresse`, Kartenposition, optional
-  Mesh-Management-IPs, Flags „Dieser Router" und „Deaktiviert".
+  Kartenlayout, Standard-SSID-Farbreihenfolge, MQTT (optional, siehe unten).
+- **Router** – Liste aller Router (eine „Instanz“ je Router, Aufbau wie
+  *VPN → OpenVPN*): Name, Raum, IP-Adresse, die Flags „Dieser Router“
+  (nur bei einem Router möglich) und „Deaktiviert“ direkt in der Liste
+  umschaltbar, dazu der aktuelle Status aus dem laufenden Dienst. Neue
+  Router über das Namensfeld unter der Liste + „Hinzufügen“; alles Weitere
+  über „Bearbeiten“: `ID` (wird aus dem Namen vorgeschlagen, nach dem
+  Speichern nicht mehr änderbar), Position horizontal/vertikal auf der Karte
+  (erlaubter Bereich = Kartengröße aus den Grundeinstellungen, Standard
+  900 × 600 px, 0/0 = oben links), optional Mesh-Management-IPs (siehe
+  unten).
+
+Die **Mesh-Management-IPs** dienen nur der Anzeige „zwischen Stationen“:
+usteer meldet je Client, welche anderen Router ihn ebenfalls empfangen, und
+benennt deren Interfaces `<IP>#hostapd.<ifname>`. Über die IP vor dem `#`
+ordnet die Karte den Eintrag einem Router zu. Ohne Eintrag wird dafür die
+normale IP-Adresse des Routers verwendet – das Feld ist also nur nötig, wenn
+usteer über ein anderes Netz (z. B. ein eigenes Management-VLAN) läuft. Die
+richtige IP zeigt `ubus call usteer remote_info` auf einem anderen Router.
+Ohne WLAN und usteer (z. B. in einer VM) bleibt diese Anzeige leer.
 - **SSID-Farben** – optional feste Farbe je SSID-Name statt automatischer
   Zuweisung.
 
@@ -206,11 +221,33 @@ die UCI-Konfiguration (`/etc/config/mesh-roaming`) automatisch in die
 `config.json`, die der Dienst tatsächlich liest; der Dienst wird dabei neu
 geladen.
 
-**Hinweis:** Die LuCI-Formulare wurden in dieser Umgebung nicht gegen eine
-echte LuCI-Laufzeitumgebung getestet (hier steht kein OpenWrt/LuCI zur
-Verfügung) – JSON-Syntax und UCI-Parsing sind geprüft, das tatsächliche
-Rendering in LuCI aber nicht. Nach der Installation einmal durchklicken und
-bei Auffälligkeiten ein Issue im Repository melden.
+#### MQTT (optional)
+
+Im Tab *MQTT* der Grundeinstellungen (UCI-Optionen in `config global 'main'`):
+
+| UCI-Option | Bedeutung |
+| --- | --- |
+| `mqtt_broker` | Hostname/IP des Brokers – leer = MQTT aus |
+| `mqtt_port` | leer = Standardport (1883, mit TLS 8883) |
+| `mqtt_base_topic`, `mqtt_publish_interval_sec` | Basis-Topic, Intervall in Sekunden |
+| `mqtt_username`, `mqtt_password` | optional; leer = anonyme Verbindung |
+| `mqtt_tls` | `1` = verschlüsselt über TLS |
+| `mqtt_tls_cafile` | optional: CA-Datei (PEM) für selbst signierte Zertifikate; leer = System-Zertifikate aus `/etc/ssl/certs` |
+| `mqtt_tls_insecure` | `1` = Hostnamen im Zertifikat nicht prüfen (nur zum Testen) |
+
+Veröffentlicht wird über `mosquitto_pub`, das nicht automatisch mitinstalliert
+wird: `apk add mosquitto-client-ssl` (bzw. `opkg install
+mosquitto-client-ssl`; die `-nossl`-Variante reicht nur ohne TLS). Für TLS
+ohne eigene CA-Datei zusätzlich `ca-certificates`.
+
+Zum Passwort: Es steht im Klartext in `/etc/config/mesh-roaming` (wie bei
+allen OpenWrt-Diensten) und in der daraus erzeugten `config.json`, die nur
+für root lesbar geschrieben wird (`0600`). An `mosquitto_pub` wird es nicht
+als Argument übergeben (wäre sonst in `ps` sichtbar), sondern über eine
+Optionsdatei im Laufzeitverzeichnis (`<runtime_dir>/mqtt/mosquitto_pub`,
+ebenfalls `0600`). Ohne TLS geht es unverschlüsselt über das Netz.
+Verbindungsfehler (z. B. „not authorised“) erscheinen höchstens einmal pro
+Minute in `logread`.
 
 ### b) Von Hand (ohne LuCI)
 

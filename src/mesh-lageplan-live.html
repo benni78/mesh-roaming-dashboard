@@ -267,7 +267,9 @@
   var ROUTER_BY_ID = {};
   var HOST_POS = {};          // routerId -> {x,y} - aus /config.json (map_x/map_y)
   var MGMT_IP_TO_ROUTER = {}; // mgmt-IP -> routerId - aus /config.json (mgmt_ips je Router)
-  var NODE_KEY_RE = /^(\d+\.\d+\.\d+\.\d+)#hostapd\.(.+)$/;
+  // usteer-Node-Namen: entfernte Knoten "<ip>#hostapd.<ifname>" (IPv4 oder
+  // IPv6), die eigenen Interfaces des abgefragten Routers nur "hostapd.<ifname>".
+  var NODE_KEY_RE = /^(?:([0-9A-Fa-f.:]+)#)?hostapd\.(.+)$/;
 
   var REACHABLE_SIGNAL_THRESHOLD = -75;
   var SHIFT_MIN = 0.15, SHIFT_MAX = 0.70;
@@ -328,7 +330,9 @@
         Object.keys(nodeMap).forEach(function(nodeKey){
           var m = NODE_KEY_RE.exec(nodeKey);
           if (!m) return;
-          var routerId = MGMT_IP_TO_ROUTER[m[1]];
+          // Ohne IP-Praefix ist es ein lokales Interface des Routers, von dem
+          // usteer_raw stammt - dafuer braucht es keine mgmt-IP.
+          var routerId = m[1] ? MGMT_IP_TO_ROUTER[m[1].toLowerCase()] : rid;
           if (!routerId) return; // unbekannte mgmt-IP - lieber ignorieren als raten
           var info = nodeMap[nodeKey] || {};
           var sig = (typeof info.signal === 'number') ? info.signal : null;
@@ -393,7 +397,12 @@
     (cfg.routers || []).forEach(function(r){
       ROUTER_BY_ID[r.id] = { id: r.id, room: r.room, name: r.name, ip: r.ip };
       HOST_POS[r.id] = { x: r.map_x, y: r.map_y };
-      (r.mgmt_ips || []).forEach(function(ip){ MGMT_IP_TO_ROUTER[ip] = r.id; });
+      // Ohne eigene mgmt_ips gilt die normale Router-IP (usteer laeuft meist
+      // im LAN). Explizit eingetragene mgmt_ips haben Vorrang.
+      if (r.ip && !(r.ip.toLowerCase() in MGMT_IP_TO_ROUTER)) MGMT_IP_TO_ROUTER[r.ip.toLowerCase()] = r.id;
+    });
+    (cfg.routers || []).forEach(function(r){
+      (r.mgmt_ips || []).forEach(function(ip){ MGMT_IP_TO_ROUTER[String(ip).toLowerCase()] = r.id; });
     });
 
     if (cfg.roaming) {

@@ -54,9 +54,10 @@ nach `/etc/mesh-roaming/config.json` kopieren und ausfüllen:
   `ip` (Client-LAN-IP, über die der Pi die Router erreicht), `name`
   (**Überschrift** auf der Karte/in allen Listen), `room` (Ort, wird nur
   als Untertitel angezeigt), `map_x`/`map_y` (Position auf der
-  900×600-Karte, grob nach echtem Grundriss verteilen), `mgmt_ips` (nur
-  nötig, wenn die Router sich per usteer/batman gegenseitig sehen und das
-  auf der Karte sichtbar sein soll – sonst leeres Array lassen).
+  900×600-Karte, grob nach echtem Grundriss verteilen), `mgmt_ips` (IPs, unter
+  denen andere Router diesen Router im usteer-Netz sehen – Teil vor dem `#`
+  in `ubus call usteer remote_info`; nur nötig, wenn das nicht schon `ip`
+  ist, sonst leeres Array lassen).
 - `ap_ifnames` – Vorlage geht vom bekannten OpenWrt-Schema `phy0-ap0..3`/
   `phy1-ap0..3` aus. Auf einem der Router per `ubus list | grep hostapd`
   gegenprüfen, falls das eigene Netz ein anderes Chipsatz-/Namensschema hat.

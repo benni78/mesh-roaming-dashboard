@@ -206,8 +206,14 @@ def build_config(sections):
         "routers": routers,
         "mqtt": {
             "broker": mqtt_broker,
+            "port": _int(g, "mqtt_port", 0) or None,
             "base_topic": _str(g, "mqtt_base_topic", "mesh-roaming"),
             "publish_interval_sec": _int(g, "mqtt_publish_interval_sec", 10),
+            "username": _str(g, "mqtt_username", "") or None,
+            "password": _str(g, "mqtt_password", "") or None,
+            "tls": _bool(g, "mqtt_tls", False),
+            "tls_cafile": _str(g, "mqtt_tls_cafile", "") or None,
+            "tls_insecure": _bool(g, "mqtt_tls_insecure", False),
         },
     }
 
@@ -233,7 +239,10 @@ def main(argv=None):
     if out_dir and not os.path.isdir(out_dir):
         os.makedirs(out_dir, exist_ok=True)
     tmp_path = args.out + ".tmp"
-    with open(tmp_path, "w", encoding="utf-8") as f:
+    # 0600: die config.json kann das MQTT-Passwort enthalten.
+    fd = os.open(tmp_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    os.fchmod(fd, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as f:
         json.dump(cfg, f, indent=2, ensure_ascii=False, sort_keys=False)
         f.write("\n")
     os.replace(tmp_path, args.out)

@@ -24,6 +24,7 @@ return view.extend({
 		s.tab('general', 'Allgemein');
 		s.tab('privacy', 'Datenschutz');
 		s.tab('ssh', 'SSH');
+		s.tab('mqtt', 'MQTT');
 		s.tab('advanced', 'Erweitert');
 
 		var o = s.taboption('general', form.Value, 'label', 'Anzeigename',
@@ -144,14 +145,50 @@ return view.extend({
 		o = s.taboption('advanced', form.Value, 'util_color_rest', 'Kanalauslastung – Farbe ungenutzt');
 		o.default = '#2f3d46';
 
-		o = s.taboption('advanced', form.Value, 'mqtt_broker', 'MQTT-Broker (optional)',
-			'Leer lassen, um MQTT zu deaktivieren.');
+		o = s.taboption('mqtt', form.Value, 'mqtt_broker', 'Broker (optional)',
+			'Hostname oder IP-Adresse. Leer lassen, um MQTT zu deaktivieren. ' +
+			'Benoetigt mosquitto_pub (apk add mosquitto-client-ssl).');
 
-		o = s.taboption('advanced', form.Value, 'mqtt_base_topic', 'MQTT – Basis-Topic');
+		o = s.taboption('mqtt', form.Value, 'mqtt_port', 'Port',
+			'Leer = Standardport (1883, mit TLS 8883).');
+		o.datatype = 'port';
+		o.placeholder = '1883 / 8883';
+		o.depends({ mqtt_broker: /.+/ });
+
+		o = s.taboption('mqtt', form.Value, 'mqtt_base_topic', 'Basis-Topic');
 		o.default = 'mesh-roaming';
+		o.depends({ mqtt_broker: /.+/ });
 
-		o = s.taboption('advanced', form.Value, 'mqtt_publish_interval_sec', 'MQTT – Intervall (s)');
+		o = s.taboption('mqtt', form.Value, 'mqtt_publish_interval_sec', 'Intervall (s)');
 		o.default = '10';
+		o.datatype = 'min(1)';
+		o.depends({ mqtt_broker: /.+/ });
+
+		o = s.taboption('mqtt', form.Value, 'mqtt_username', 'Benutzername (optional)',
+			'Leer lassen fuer eine anonyme Verbindung.');
+		o.depends({ mqtt_broker: /.+/ });
+
+		o = s.taboption('mqtt', form.Value, 'mqtt_password', 'Passwort (optional)',
+			'Wird im Klartext in /etc/config/mesh-roaming gespeichert und ohne ' +
+			'TLS unverschluesselt uebertragen.');
+		o.password = true;
+		o.depends({ mqtt_broker: /.+/, mqtt_username: /.+/ });
+
+		o = s.taboption('mqtt', form.Flag, 'mqtt_tls', 'TLS verwenden');
+		o.default = '0';
+		o.depends({ mqtt_broker: /.+/ });
+
+		o = s.taboption('mqtt', form.Value, 'mqtt_tls_cafile', 'CA-Zertifikat (optional)',
+			'Pfad zu einer CA-Datei (PEM) fuer selbst signierte Broker-Zertifikate. ' +
+			'Leer = System-Zertifikate aus /etc/ssl/certs (Paket ca-certificates).');
+		o.placeholder = '/etc/mesh-roaming/mqtt-ca.crt';
+		o.depends({ mqtt_broker: /.+/, mqtt_tls: '1' });
+
+		o = s.taboption('mqtt', form.Flag, 'mqtt_tls_insecure', 'Hostnamen nicht pruefen',
+			'Nur zum Testen: akzeptiert ein Zertifikat, auch wenn der Hostname ' +
+			'nicht passt.');
+		o.default = '0';
+		o.depends({ mqtt_broker: /.+/, mqtt_tls: '1' });
 
 		return m.render();
 	}

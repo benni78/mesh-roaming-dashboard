@@ -83,6 +83,8 @@ build_one() {
 	mkdir -p "$work/control" "$work/files"
 	cp -R "$src/control/." "$work/control/"
 	[ -d "$src/files" ] && cp -R "$src/files/." "$work/files/"
+	# Python-Bytecode (z. B. von einem lokalen py_compile) nicht mitpacken
+	find "$work/files" -type d -name __pycache__ -prune -exec rm -rf {} +
 	find "$work/control" "$work/files" -type d -exec chmod 0755 {} +
 	find "$work/control" "$work/files" -type f -exec chmod 0644 {} +
 	for f in preinst postinst prerm postrm; do

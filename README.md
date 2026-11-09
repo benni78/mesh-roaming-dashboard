@@ -197,7 +197,8 @@ Zweifel vor dem Einsatz fachkundigen Rat einholen.
 - Client-Punkte: voller Punkt = 5 GHz, Ring = 2,4 GHz.
 - Clients lassen sich im UI umbenennen (Nickname), bleibt dauerhaft
   gespeichert.
-- Optional: Zusammenfassungs-Metriken per MQTT (z. B. für InfluxDB/Grafana).
+- Optional: Zusammenfassungs-Metriken per MQTT (z. B. für InfluxDB/Grafana),
+  wahlweise mit Benutzername/Passwort und TLS.
 - Automatische Speicherbegrenzung (DSGVO): geräte­bezogene Daten verfallen
   nach `privacy.retention_days` (Default 7 Tage), eine MAC-freie
   Langzeit-Statistik bleibt für Trend-Analysen erhalten, Sofort-Löschung
