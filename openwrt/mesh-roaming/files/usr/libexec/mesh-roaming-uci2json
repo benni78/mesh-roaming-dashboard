@@ -23,7 +23,13 @@ von OpenWrt testbar.
 Aufruf:
     mesh-roaming-uci2json [--uci-dir /etc/config] [--name mesh-roaming]
                           [--out /etc/mesh-roaming/config.json]
+    mesh-roaming-uci2json --version
+
+Copyright Benni (mesh-roaming-dashboard)
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
+
+__version__ = "1.2"  # MESH_ROAMING_VERSION
 
 import argparse
 import json
@@ -223,6 +229,7 @@ def main(argv=None):
     ap.add_argument("--uci-dir", default="/etc/config")
     ap.add_argument("--name", default="mesh-roaming")
     ap.add_argument("--out", default="/etc/mesh-roaming/config.json")
+    ap.add_argument("--version", action="version", version="%(prog)s (mesh-roaming-dashboard) " + __version__)
     args = ap.parse_args(argv)
 
     uci_path = os.path.join(args.uci_dir, args.name)

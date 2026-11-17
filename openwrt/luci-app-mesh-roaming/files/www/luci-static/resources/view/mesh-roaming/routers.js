@@ -5,6 +5,10 @@
 'require uci';
 'require view';
 
+// Copyright Benni (mesh-roaming-dashboard)
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+var VERSION = '1.2'; // MESH_ROAMING_VERSION
+
 // Router-Liste des Mesh-Roaming-Dashboards (UCI-Typ "router" in
 // /etc/config/mesh-roaming). Aufbau wie die Instanz-Liste unter
 // LuCI -> VPN -> OpenVPN: eine Tabellenzeile je Router, "Dieser Router" und
@@ -58,7 +62,7 @@ return view.extend({
 		var savedSections = {};
 		uci.sections(CONFIG, 'router').forEach(function (s) { savedSections[s['.name']] = true; });
 
-		m = new form.Map(CONFIG, 'Mesh Roaming Dashboard – Router',
+		m = new form.Map(CONFIG, 'Mesh Roaming Dashboard ' + VERSION + ' – Router',
 			'Ein Eintrag (Instanz) je Router. „Dieser Router“ und „Deaktiviert“ lassen ' +
 			'sich direkt in der Liste umschalten, alle weiteren Einstellungen ueber ' +
 			'„Bearbeiten“. Nach dem Speichern & Anwenden wird der Dienst neu geladen.');

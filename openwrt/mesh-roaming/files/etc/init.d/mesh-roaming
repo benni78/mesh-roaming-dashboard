@@ -1,6 +1,9 @@
 #!/bin/sh /etc/rc.common
 # Live-Dienst fuer ein OpenWrt-Mesh-Netzwerk (usteer) - Karte, Roaming-Log,
-# Kanalauslastung. Siehe https://github.com/<user>/mesh-roaming-dashboard
+# Kanalauslastung. Siehe https://github.com/benni78/mesh-roaming-dashboard
+# Version 1.2 (MESH_ROAMING_VERSION)
+# Copyright Benni (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #
 # Konfiguration kommt entweder direkt aus /etc/mesh-roaming/config.json
 # (von Hand gepflegt) oder - falls installiert - aus UCI

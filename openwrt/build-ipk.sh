@@ -1,4 +1,8 @@
 #!/bin/sh
+# Version 1.2 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Copyright Benni (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+#
 # Baut .ipk-Pakete aus openwrt/<paketname>/{control,files}/ - ohne OpenWrt-SDK,
 # nur mit tar/gzip (reicht fuer reine Skript-Pakete, Architecture: all).
 #
@@ -32,6 +36,12 @@
 #
 # Ergebnis landet in openwrt/dist/<paket>_<version>_all.ipk
 #
+# Jedes Paket bekommt LICENSE und THIRD-PARTY-NOTICES.md des Projekts unter
+# /usr/share/licenses/<paket>/ (die Lizenz verlangt, dass jede weitergegebene
+# Kopie die Lizenzbedingungen enthaelt). Vor dem Bauen wird geprueft, dass
+# alle mit MESH_ROAMING_VERSION markierten Versionsangaben zur Version in
+# control/control passen und die Kopien unter src/ identisch sind.
+#
 # Hinweis: Das erzeugte Archiv wurde nicht gegen ein echtes opkg auf einem
 # Router getestet (in dieser Umgebung steht kein OpenWrt zur Verfuegung) -
 # vor dem produktiven Einsatz einmal mit "opkg install ./paket.ipk" auf
@@ -40,6 +50,7 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_DIR=$(dirname -- "$SCRIPT_DIR")
 DIST_DIR="$SCRIPT_DIR/dist"
 mkdir -p "$DIST_DIR"
 
@@ -70,6 +81,22 @@ build_one() {
 	[ -n "$name" ] || { echo "Fehler: kein 'Package:' in $src/control/control" >&2; exit 1; }
 	[ -n "$version" ] || { echo "Fehler: kein 'Version:' in $src/control/control" >&2; exit 1; }
 
+	# Versionsangaben in den Programmen muessen zur Paketversion passen
+	upstream=${version%-r*}
+	bad=$(grep -rn "MESH_ROAMING_VERSION" "$src/files" 2>/dev/null | grep -v "[^0-9.]$upstream[^0-9.]" || true)
+	if [ -n "$bad" ]; then
+		echo "Fehler: Versionsangabe passt nicht zu $version:" >&2
+		echo "$bad" >&2
+		exit 1
+	fi
+	for f in mesh_roaming_pi.py mesh-lageplan-live.html; do
+		copy="$src/files/usr/share/mesh-roaming/$f"
+		if [ -f "$copy" ] && [ -f "$REPO_DIR/src/$f" ] && ! cmp -s "$copy" "$REPO_DIR/src/$f"; then
+			echo "Fehler: $copy unterscheidet sich von src/$f" >&2
+			exit 1
+		fi
+	done
+
 	work=$(mktemp -d)
 	trap 'rm -rf "$work"' EXIT
 
@@ -83,6 +110,11 @@ build_one() {
 	mkdir -p "$work/control" "$work/files"
 	cp -R "$src/control/." "$work/control/"
 	[ -d "$src/files" ] && cp -R "$src/files/." "$work/files/"
+	mkdir -p "$work/files/usr/share/licenses/$name"
+	for f in LICENSE THIRD-PARTY-NOTICES.md; do
+		[ -f "$REPO_DIR/$f" ] || { echo "Fehler: $REPO_DIR/$f fehlt" >&2; exit 1; }
+		cp "$REPO_DIR/$f" "$work/files/usr/share/licenses/$name/"
+	done
 	# Python-Bytecode (z. B. von einem lokalen py_compile) nicht mitpacken
 	find "$work/files" -type d -name __pycache__ -prune -exec rm -rf {} +
 	find "$work/control" "$work/files" -type d -exec chmod 0755 {} +

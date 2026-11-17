@@ -48,7 +48,12 @@ Start (manuell zum Testen, aus dem Projektverzeichnis heraus):
 Anzeige: http://<pi-ip>:8765/
 Als Dienst: siehe systemd/mesh-roaming.service bzw.
 docs/deployment-raspbian-openhab.md.
+
+Copyright Benni (mesh-roaming-dashboard)
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
+
+__version__ = "1.2"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -1059,6 +1064,7 @@ def mqtt_publisher(stop_event):
 
 def public_config():
     return {
+        "version": __version__,
         "network": CONFIG.get("network", {}),
         "routers": [
             {
@@ -1080,7 +1086,7 @@ def public_config():
 # ---- HTTP-Server ----------------------------------------------------------
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "MeshRoamingPi/1.0"
+    server_version = "MeshRoamingPi/" + __version__
 
     def _send_json(self, obj, status=200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")
@@ -1208,6 +1214,10 @@ def main():
     global MQTT_TLS, MQTT_TLS_CAFILE, MQTT_TLS_CAPATH, MQTT_TLS_INSECURE
     global RETENTION_MS, STATS_ENABLED
 
+    if len(sys.argv) > 1 and sys.argv[1] in ("--version", "-V"):
+        print("mesh_roaming_pi.py (mesh-roaming-dashboard) %s" % __version__)
+        return
+
     # Alle vom Dienst angelegten Dateien (SQLite-DB, known_hosts,
     # MQTT-Optionsdatei) nur fuer den Dienst selbst lesbar.
     os.umask(0o077)
@@ -1292,8 +1302,8 @@ def main():
     hostname = socket.gethostname()
     label = CONFIG.get("network", {}).get("label", "Mesh-Netzwerk")
     print(
-        "Mesh-Roaming-Pi-Server (%s) laeuft: http://%s:%d/ (bind %s:%d), Konfiguration: %s"
-        % (label, hostname, HTTP_PORT, HTTP_BIND, HTTP_PORT, CONFIG_PATH),
+        "Mesh-Roaming-Pi-Server %s (%s) laeuft: http://%s:%d/ (bind %s:%d), Konfiguration: %s"
+        % (__version__, label, hostname, HTTP_PORT, HTTP_BIND, HTTP_PORT, CONFIG_PATH),
         flush=True,
     )
     httpd.serve_forever()

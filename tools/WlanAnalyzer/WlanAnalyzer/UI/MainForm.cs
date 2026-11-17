@@ -30,6 +30,7 @@ internal sealed class MainForm : Form
     private readonly ToolStripButton _pauseButton = new("Pause") { CheckOnClick = true };
     private readonly ToolStripButton _ownButton = new("Eigene Netze …");
     private readonly ToolStripButton _exportButton = new("CSV-Export …");
+    private readonly ToolStripButton _aboutButton = new("Info") { Alignment = ToolStripItemAlignment.Right };
     private readonly Label _infoLabel = new() { Dock = DockStyle.Fill, AutoEllipsis = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly LinkLabel _locationLink = new()
     {
@@ -69,7 +70,7 @@ internal sealed class MainForm : Form
         _screenshotPath = screenshotPath;
         _startBand = startBand;
 
-        Text = "WLAN-Analyzer – Kanalnutzung" + (source.IsDemo ? " · DEMO-DATEN" : "");
+        Text = $"WLAN-Analyzer {AboutForm.AppVersion} – Kanalnutzung" + (source.IsDemo ? " · DEMO-DATEN" : "");
         AutoScaleMode = AutoScaleMode.Dpi;
         ClientSize = new Size(1280, 900);
         MinimumSize = new Size(900, 640);
@@ -93,7 +94,7 @@ internal sealed class MainForm : Form
             new ToolStripSeparator(),
             new ToolStripLabel("Intervall:"), _intervalBox, _scanButton, _pauseButton,
             new ToolStripSeparator(),
-            _ownButton, _exportButton,
+            _ownButton, _exportButton, _aboutButton,
         });
 
         var infoPanel = new Panel { Dock = DockStyle.Top, Height = 30, Padding = new Padding(10, 0, 10, 0), BackColor = Theme.Raised };
@@ -235,6 +236,11 @@ internal sealed class MainForm : Form
         };
         _ownButton.Click += (_, _) => EditOwnNetworks();
         _exportButton.Click += (_, _) => ExportCsv();
+        _aboutButton.Click += (_, _) =>
+        {
+            using var about = new AboutForm();
+            about.ShowDialog(this);
+        };
         _locationLink.LinkClicked += (_, _) =>
             Process.Start(new ProcessStartInfo("ms-settings:privacy-location") { UseShellExecute = true });
         _tabs.SelectedIndexChanged += (_, _) => RefreshHistory();

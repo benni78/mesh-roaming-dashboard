@@ -2,6 +2,10 @@
 'require form';
 'require view';
 
+// Copyright Benni (mesh-roaming-dashboard)
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+var VERSION = '1.2'; // MESH_ROAMING_VERSION
+
 // Feste Farben je SSID-Name (UCI-Typ "ssid_color" in
 // /etc/config/mesh-roaming). Optional - jede SSID, die hier nicht
 // eingetragen ist, bekommt automatisch eine Farbe aus der
@@ -12,7 +16,7 @@ return view.extend({
 	render: function () {
 		var m, s, o;
 
-		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard – SSID-Farben',
+		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard ' + VERSION + ' – SSID-Farben',
 			'Optional: feste Farbe je SSID-Name, statt automatischer Zuweisung ' +
 			'nach Entdeckungsreihenfolge.');
 

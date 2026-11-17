@@ -4,6 +4,15 @@
 # luci-app-mesh-roaming (Seite "Router", Spalte "Status") ueber rpcd
 # aufgerufen - so braucht der Browser keinen direkten Zugriff auf den
 # Dienst-Port (kein CORS/Mixed-Content-Problem bei LuCI ueber HTTPS).
+#
+# Copyright Benni (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+VERSION=1.2 # MESH_ROAMING_VERSION
+if [ "$1" = "--version" ]; then
+	echo "mesh-roaming-status (mesh-roaming-dashboard) $VERSION"
+	exit 0
+fi
 
 . /lib/functions.sh
 

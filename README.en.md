@@ -260,24 +260,24 @@ the current version (architecture `all`, run on any target):
 
 | File | for |
 |---|---|
-| `mesh-roaming_1.1-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.1-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.1-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.1-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
+| `mesh-roaming_1.2-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.2-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.2-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.2-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
 
 ```sh
 # on the PC: copy the packages to the router (-O: Dropbear has no SFTP)
-scp -O packages/*_1.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_1.2-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # on the router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: packages intact?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.1-r1_all.apk ./luci-app-mesh-roaming_1.1-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_1.2-r1_all.apk ./luci-app-mesh-roaming_1.2-r1_all.apk
 
 # or on the router (opkg, up to OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.1-r1_all.ipk ./luci-app-mesh-roaming_1.1-r1_all.ipk
+opkg install ./mesh-roaming_1.2-r1_all.ipk ./luci-app-mesh-roaming_1.2-r1_all.ipk
 ```
 
 The package manager fetches the dependencies (`python3`, `python3-sqlite3`,
@@ -346,3 +346,28 @@ without InfluxDB. Details (in German):
 see [`LICENSE`](LICENSE). Private, scientific, charitable and other
 non-commercial use, modification and redistribution are freely permitted.
 **Commercial licences available on request.**
+
+This makes the project *source-available*, but not open source as defined by
+the OSI, because commercial use is excluded. Anyone passing on copies or
+modified versions must include the licence and the line `Required Notice:
+Copyright Benni (mesh-roaming-dashboard)`. For this, the packages in
+`packages/` contain `LICENSE` and `THIRD-PARTY-NOTICES.md` under
+`/usr/share/licenses/<package>/`; the WLAN Analyzer places both next to the
+EXE and shows them under *Info*.
+
+**Third-party software:** The only third-party code included is the
+MIT-licensed tool `openwrt-ipk2apk` (in `openwrt/tools/`). All other programs
+and libraries used (Python, OpenWrt, LuCI, .NET …) are not shipped. Details
+and licence texts: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+## Versions
+
+| Program | Version | Shown in |
+|---|---|---|
+| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, build scripts | 1.2 | `--version`, live page header, LuCI page title, `/config.json` |
+| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 1.2-r1 | `apk info -v` or `opkg list-installed` |
+| WLAN Analyzer | 1.1.0 | title bar, *Info*, `--version`, EXE file properties |
+
+Changes per version: [`CHANGELOG.md`](CHANGELOG.md). All version strings of
+the dashboard carry the marker `MESH_ROAMING_VERSION`; `openwrt/build-ipk.sh`
+aborts if one of them does not match the version in `control/control`.

@@ -2,6 +2,10 @@
 'require form';
 'require view';
 
+// Copyright Benni (mesh-roaming-dashboard)
+// SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+var VERSION = '1.2'; // MESH_ROAMING_VERSION
+
 // Grundeinstellungen des Mesh-Roaming-Dashboards (UCI-Sektion
 // "config global 'main'" in /etc/config/mesh-roaming). Nach dem Speichern
 // erzeugt der Init-Dienst beim naechsten (Re-)Start/Reload daraus die
@@ -12,7 +16,7 @@ return view.extend({
 	render: function () {
 		var m, s;
 
-		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard – Grundeinstellungen',
+		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard ' + VERSION + ' – Grundeinstellungen',
 			'Diese Werte gelten fuer das gesamte Dashboard. Router und SSID-Farben ' +
 			'werden auf den jeweils eigenen Seiten gepflegt. Nach dem Speichern & ' +
 			'Anwenden wird der Dienst neu geladen.');
