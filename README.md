@@ -271,24 +271,24 @@ aktuellen Version (Architektur `all`, laufen auf jedem Target):
 
 | Datei | für |
 |---|---|
-| `mesh-roaming_1.2-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.2-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.2-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.2-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+| `mesh-roaming_1.2-r2_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.2-r2_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.2-r2_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.2-r2_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
 
 ```sh
 # auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
-scp -O packages/*_1.2-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_1.2-r2_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # auf dem Router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.2-r1_all.apk ./luci-app-mesh-roaming_1.2-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_1.2-r2_all.apk ./luci-app-mesh-roaming_1.2-r2_all.apk
 
 # bzw. auf dem Router (opkg, bis OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.2-r1_all.ipk ./luci-app-mesh-roaming_1.2-r1_all.ipk
+opkg install ./mesh-roaming_1.2-r2_all.ipk ./luci-app-mesh-roaming_1.2-r2_all.ipk
 ```
 
 Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
@@ -360,25 +360,31 @@ frei möglich. **Kommerzielle Lizenzen auf Anfrage.**
 Das Projekt ist damit *quelloffen* („source-available“), aber keine
 Open-Source-Software im Sinne der OSI-Definition, weil die kommerzielle
 Nutzung ausgeschlossen ist. Wer Kopien oder geänderte Fassungen weitergibt,
-muss die Lizenz und die Zeile `Required Notice: Copyright Benni
+muss die Lizenz und die Zeile `Required Notice: Copyright Benjamin Johann
 (mesh-roaming-dashboard)` mitgeben. Die Pakete unter `packages/` enthalten
 dafür `LICENSE` und `THIRD-PARTY-NOTICES.md` unter
-`/usr/share/licenses/<paket>/`, der WLAN-Analyzer legt beide neben die EXE
-und zeigt sie unter *Info*.
+`/usr/share/licenses/<paket>/`; bei der Raspberry-Pi-Variante werden beide
+mit nach `/opt/mesh-roaming/` kopiert (siehe
+[Anleitung](docs/deployment-raspbian-openhab.md)).
 
-**Software Dritter:** Enthalten ist nur das MIT-lizenzierte Werkzeug
-`openwrt-ipk2apk` (unter `openwrt/tools/`). Alle weiteren genutzten
-Programme und Bibliotheken (Python, OpenWrt, LuCI, .NET …) werden nicht
-mitgeliefert. Details und Lizenztexte:
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+**Software Dritter:** Im Dashboard ist nur das MIT-lizenzierte Werkzeug
+`openwrt-ipk2apk` (unter `openwrt/tools/`) enthalten. Alle weiteren genutzten
+Programme (Python, OpenWrt, LuCI …) werden nicht mitgeliefert. Details und
+Lizenztexte: [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+
+Der WLAN-Analyzer unter `tools/WlanAnalyzer/` ist ein eigenständiges
+Programm mit eigener [`LICENSE`](tools/WlanAnalyzer/LICENSE) (ebenfalls
+PolyForm Noncommercial) und eigenen
+[Hinweisen zu Software Dritter](tools/WlanAnalyzer/THIRD-PARTY-NOTICES.md).
 
 ## Versionen
 
 | Programm | Version | Anzeige |
 |---|---|---|
-| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, Build-Skripte | 1.2 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
-| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.2-r1 | `apk info -v` bzw. `opkg list-installed` |
-| WLAN-Analyzer | 1.1.0 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
+| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 1.2 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
+| Raspberry-Pi-Variante (`src/`, `systemd/`) | 1.2 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
+| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.2-r2 | `apk info -v` bzw. `opkg list-installed` |
+| WLAN-Analyzer | 1.1.1 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
 
 Änderungen je Version: [`CHANGELOG.md`](CHANGELOG.md). Alle Versionsangaben
 des Dashboards tragen die Markierung `MESH_ROAMING_VERSION`;

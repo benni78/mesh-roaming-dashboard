@@ -25,7 +25,7 @@ Aufruf:
                           [--out /etc/mesh-roaming/config.json]
     mesh-roaming-uci2json --version
 
-Copyright Benni (mesh-roaming-dashboard)
+Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 

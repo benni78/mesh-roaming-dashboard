@@ -1,3 +1,10 @@
+# Mesh Roaming Dashboard - systemd-Unit fuer die Raspberry-Pi-Variante
+# Version 1.2 (MESH_ROAMING_VERSION)
+# Copyright Benjamin Johann (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+# Lizenz und Hinweise zu Software Dritter: /opt/mesh-roaming/LICENSE,
+# /opt/mesh-roaming/THIRD-PARTY-NOTICES.md
+
 [Unit]
 Description=Mesh-Lageplan Live-Server (Roaming-Visualisierung)
 Documentation=file:///opt/mesh-roaming/mesh_roaming_pi.py

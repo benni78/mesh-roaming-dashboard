@@ -8,7 +8,7 @@ internal sealed class AboutForm : Form
 {
     public const string ProjectUrl = "https://github.com/benni78/mesh-roaming-dashboard";
 
-    /// <summary>Version aus der Projektdatei (&lt;Version&gt;), z. B. "1.1.0".</summary>
+    /// <summary>Version aus der Projektdatei (&lt;Version&gt;), z. B. "1.1.1".</summary>
     public static string AppVersion
     {
         get
@@ -35,7 +35,7 @@ internal sealed class AboutForm : Form
             Height = 64,
             Padding = new Padding(12, 10, 12, 0),
             Text = $"WLAN-Analyzer {AppVersion}\n" +
-                   "Copyright Benni (mesh-roaming-dashboard) · Lizenz: PolyForm Noncommercial 1.0.0 " +
+                   "Copyright Benjamin Johann (WLAN-Analyzer) · Lizenz: PolyForm Noncommercial 1.0.0 " +
                    "(nicht-kommerzielle Nutzung frei, kommerzielle Lizenzen auf Anfrage)",
         };
         var link = new LinkLabel { Dock = DockStyle.Top, Height = 24, Padding = new Padding(12, 0, 12, 0), Text = ProjectUrl };

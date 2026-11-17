@@ -1,6 +1,6 @@
 #!/bin/sh
 # Version 1.2 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
-# Copyright Benni (mesh-roaming-dashboard)
+# Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #
 # Baut .apk-Pakete (Alpine-Format, Standard-Paketmanager seit OpenWrt 25.12)

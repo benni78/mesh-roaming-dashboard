@@ -1,6 +1,6 @@
 #!/bin/sh
 # Version 1.2 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
-# Copyright Benni (mesh-roaming-dashboard)
+# Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #
 # Baut .ipk-Pakete aus openwrt/<paketname>/{control,files}/ - ohne OpenWrt-SDK,
@@ -39,8 +39,9 @@
 # Jedes Paket bekommt LICENSE und THIRD-PARTY-NOTICES.md des Projekts unter
 # /usr/share/licenses/<paket>/ (die Lizenz verlangt, dass jede weitergegebene
 # Kopie die Lizenzbedingungen enthaelt). Vor dem Bauen wird geprueft, dass
-# alle mit MESH_ROAMING_VERSION markierten Versionsangaben zur Version in
-# control/control passen und die Kopien unter src/ identisch sind.
+# alle mit MESH_ROAMING_VERSION markierten Versionsangaben (Paketdateien,
+# src/ und systemd/ der Raspberry-Pi-Variante) zur Version in control/control
+# passen und die Kopien unter src/ identisch sind.
 #
 # Hinweis: Das erzeugte Archiv wurde nicht gegen ein echtes opkg auf einem
 # Router getestet (in dieser Umgebung steht kein OpenWrt zur Verfuegung) -
@@ -83,7 +84,7 @@ build_one() {
 
 	# Versionsangaben in den Programmen muessen zur Paketversion passen
 	upstream=${version%-r*}
-	bad=$(grep -rn "MESH_ROAMING_VERSION" "$src/files" 2>/dev/null | grep -v "[^0-9.]$upstream[^0-9.]" || true)
+	bad=$(grep -rn "MESH_ROAMING_VERSION" "$src/files" "$REPO_DIR/src" "$REPO_DIR/systemd" 2>/dev/null | grep -v "[^0-9.]$upstream[^0-9.]" || true)
 	if [ -n "$bad" ]; then
 		echo "Fehler: Versionsangabe passt nicht zu $version:" >&2
 		echo "$bad" >&2

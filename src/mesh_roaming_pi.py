@@ -49,7 +49,7 @@ Anzeige: http://<pi-ip>:8765/
 Als Dienst: siehe systemd/mesh-roaming.service bzw.
 docs/deployment-raspbian-openhab.md.
 
-Copyright Benni (mesh-roaming-dashboard)
+Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 

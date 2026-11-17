@@ -12,20 +12,20 @@
     <RootNamespace>WlanAnalyzer</RootNamespace>
 
     <!-- Versionsnummer: hier pflegen (Titelleiste, Info-Dialog, Dateieigenschaften der EXE) -->
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
-    <Product>WLAN-Analyzer (Mesh Roaming Dashboard)</Product>
+    <Product>WLAN-Analyzer</Product>
     <Description>Kanalnutzung und Auslastung der WLAN-Netze in Reichweite des PC-eigenen WLAN-Adapters</Description>
-    <Authors>Benni</Authors>
-    <Copyright>Copyright Benni (mesh-roaming-dashboard) · PolyForm Noncommercial 1.0.0</Copyright>
+    <Authors>Benjamin Johann</Authors>
+    <Copyright>Copyright Benjamin Johann · PolyForm Noncommercial 1.0.0</Copyright>
   </PropertyGroup>
 
   <!-- Lizenz und Drittanbieter-Hinweise: im Info-Dialog anzeigen und neben die EXE legen -->
   <ItemGroup>
-    <EmbeddedResource Include="..\..\..\LICENSE" LogicalName="LICENSE" />
-    <EmbeddedResource Include="..\..\..\THIRD-PARTY-NOTICES.md" LogicalName="THIRD-PARTY-NOTICES.md" />
-    <None Include="..\..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <None Include="..\..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <EmbeddedResource Include="..\LICENSE" LogicalName="LICENSE" />
+    <EmbeddedResource Include="..\THIRD-PARTY-NOTICES.md" LogicalName="THIRD-PARTY-NOTICES.md" />
+    <None Include="..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

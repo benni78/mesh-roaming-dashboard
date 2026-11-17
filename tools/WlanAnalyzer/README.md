@@ -1,8 +1,8 @@
 # WLAN-Analyzer (Windows)
 
-Version 1.1.0 · Copyright Benni (mesh-roaming-dashboard) · Lizenz:
-PolyForm Noncommercial 1.0.0 (siehe [`LICENSE`](../../LICENSE)) · Hinweise zu
-genutzter Software Dritter: [`THIRD-PARTY-NOTICES.md`](../../THIRD-PARTY-NOTICES.md)
+Version 1.1.1 · Copyright Benjamin Johann · Lizenz: PolyForm Noncommercial
+1.0.0 (siehe [`LICENSE`](LICENSE)) · Hinweise zu genutzter Software Dritter:
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
 
 Ein eigenständiger Windows-Client, der mit dem **WLAN-Adapter des PCs** alle
 WLAN-Netze in Reichweite ausliest und die **Kanalnutzung** zeigt – getrennt
@@ -131,7 +131,7 @@ dotnet publish WlanAnalyzer -c Release -r win-x64 --self-contained -p:PublishSin
 `LICENSE` und `THIRD-PARTY-NOTICES.md` landen dabei automatisch neben der
 EXE. Eine solche EXE enthält die .NET-Laufzeit (MIT-Lizenz). Wer sie
 weitergibt, legt zusätzlich deren Lizenz und Drittanbieter-Hinweise bei
-(Links in `THIRD-PARTY-NOTICES.md`).
+(Links in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)).
 
 ## Aufbau des Quellcodes
 

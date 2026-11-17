@@ -1,9 +1,9 @@
 Package: mesh-roaming
-Version: 1.2-r1
+Version: 1.2-r2
 Architecture: all
 Section: net
 Category: Network
-Maintainer: Benni
+Maintainer: Benjamin Johann
 License: PolyForm-Noncommercial-1.0.0
 Source: https://github.com/<user>/mesh-roaming-dashboard
 Depends: python3, python3-sqlite3, openssh-client-utils

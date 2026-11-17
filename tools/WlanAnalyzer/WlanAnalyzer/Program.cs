@@ -12,11 +12,11 @@ internal static class Program
     //   WlanAnalyzer.exe --band 24|5|6     mit diesem Band-Reiter starten (Standard: 5)
     //   WlanAnalyzer.exe --view signal|load  unten Signal- oder Auslastungsverlauf zeigen
     //   WlanAnalyzer.exe --version         Versionsnummer anzeigen
-    //
-    // Copyright Benni (mesh-roaming-dashboard)
-    // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
     //   WlanAnalyzer.exe --screenshot x.png  nach dem ersten Scan Fenster als Bild speichern
     //                                        und beenden (fuer Doku-Screenshots)
+    //
+    // Copyright Benjamin Johann (WLAN-Analyzer)
+    // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
     [STAThread]
     private static void Main(string[] args)
     {
@@ -25,7 +25,7 @@ internal static class Program
         if (args.Contains("--version", StringComparer.OrdinalIgnoreCase))
         {
             // WinExe hat keine Konsole - Version als Meldung zeigen
-            MessageBox.Show($"WLAN-Analyzer {AboutForm.AppVersion}\nCopyright Benni (mesh-roaming-dashboard)\n" +
+            MessageBox.Show($"WLAN-Analyzer {AboutForm.AppVersion}\nCopyright Benjamin Johann (WLAN-Analyzer)\n" +
                             "Lizenz: PolyForm Noncommercial 1.0.0", "WLAN-Analyzer");
             return;
         }

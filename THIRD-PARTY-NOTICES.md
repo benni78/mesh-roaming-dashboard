@@ -1,15 +1,17 @@
-# Hinweise zu Software Dritter / Third-Party Notices
+# Hinweise zu Software Dritter – Mesh Roaming Dashboard
 
-*English summary: This project's own code is licensed under the PolyForm
+*English summary: The Mesh Roaming Dashboard (service, live page, OpenWrt
+packages, LuCI pages, Raspberry Pi variant) is licensed under the PolyForm
 Noncommercial License 1.0.0 (see [`LICENSE`](LICENSE)). The only third-party
-code contained in this repository is `openwrt-ipk2apk` (MIT, section 1).
-Section 2 lists third-party software that the programs use at runtime or
-build time but that is **not** contained in this repository or in the
-packages under `packages/`.*
+code contained in its source tree is the build tool `openwrt-ipk2apk` (MIT,
+section 1). Section 2 lists third-party software the dashboard uses at
+runtime but does **not** ship.*
 
-Stand: mesh-roaming-dashboard 1.2, WLAN-Analyzer 1.1.0
+Gilt für: Dienst `mesh_roaming_pi.py`, Live-Seite, OpenWrt-Pakete
+`mesh-roaming` und `luci-app-mesh-roaming`, Raspberry-Pi-Variante
+(`src/`, `systemd/`). Stand: Version 1.2.
 
-## 1. In diesem Repository enthaltene Software Dritter
+## 1. Enthaltene Software Dritter
 
 ### openwrt-ipk2apk
 
@@ -18,8 +20,8 @@ Stand: mesh-roaming-dashboard 1.2, WLAN-Analyzer 1.1.0
 - Herkunft: <https://github.com/rychly/openwrt-ipk2apk>, Commit `60caa88a`,
   mit zwei dokumentierten Änderungen (siehe
   [`README-vendored.md`](openwrt/tools/openwrt-ipk2apk/README-vendored.md))
-- Verwendung: nur als Werkzeug beim Bauen der `.apk`-Pakete, nicht
-  Bestandteil der Pakete
+- Verwendung: nur als Werkzeug beim Bauen der `.apk`-Pakete. Es ist weder in
+  den Paketen noch in der Raspberry-Pi-Variante enthalten.
 - Lizenz: MIT, Originaltext auch in
   [`openwrt/tools/openwrt-ipk2apk/LICENSE`](openwrt/tools/openwrt-ipk2apk/LICENSE)
 
@@ -49,64 +51,56 @@ SOFTWARE.
 
 ## 2. Genutzte, aber nicht enthaltene Open-Source-Software
 
-Die Programme dieses Projekts rufen die folgende Software auf oder laufen in
-ihr. Sie wird **nicht** mit diesem Projekt weitergegeben, sondern ist auf dem
-Zielsystem vorhanden oder wird vom Paketmanager installiert. Es wird kein Code
-daraus kopiert oder statisch eingebunden. Die Liste dient der Transparenz und
-nennt die jeweils maßgebliche Lizenz des Originalprojekts.
+Das Dashboard ruft die folgende Software auf oder läuft in ihr. Sie wird
+**nicht** mitgeliefert, sondern ist auf dem Zielsystem vorhanden oder wird
+vom Paketmanager installiert. Es wird kein Code daraus kopiert oder statisch
+eingebunden. Die Liste dient der Transparenz.
 
-### Dienst `mesh-roaming` (Raspberry Pi / OpenWrt)
+### Dienst (Raspberry Pi und OpenWrt)
 
 | Software | Wofür | Lizenz |
 |---|---|---|
 | Python 3 mit Standardbibliothek | Laufzeit von `mesh_roaming_pi.py` und `mesh-roaming-uci2json` | Python Software Foundation License 2.0 |
 | SQLite (über Pythons `sqlite3`) | Ereignis-Log, Gerätenamen | Public Domain |
-| OpenSSH-Client bzw. Dropbear | Abfrage der Router per SSH | BSD-artige Lizenzen bzw. MIT |
+| OpenSSH-Client (Raspberry Pi, OpenWrt-Paket `openssh-client-utils`) | Abfrage der Router per SSH | BSD-artige Lizenz |
 | Mosquitto-Client `mosquitto_pub` (optional) | MQTT-Veröffentlichung | EPL-2.0 / EDL-1.0 |
 | `ip` (iproute2 bzw. BusyBox) | Nachbartabelle | GPL-2.0 |
-| systemd (nur Raspberry Pi) | Dienstverwaltung | LGPL-2.1+ |
 
-### Auf den OpenWrt-Routern (nur über Schnittstellen genutzt)
+### Nur Raspberry Pi
+
+| Software | Wofür | Lizenz |
+|---|---|---|
+| systemd | Dienstverwaltung (`systemd/mesh-roaming.service`) | LGPL-2.1+ |
+
+### Nur OpenWrt
 
 | Software | Wofür | Lizenz |
 |---|---|---|
 | OpenWrt (base-files, procd, `/etc/rc.common`, `/lib/functions.sh`) | Init-Skript, UCI-Zugriff | GPL-2.0 |
-| ubus | Abfrage von hostapd/usteer/DHCP | LGPL-2.1 |
-| usteer | Roaming-Daten | GPL-2.0 |
-| hostapd | Client- und Kanal-Informationen | BSD-3-Clause |
 | rpcd | Aufruf von `mesh-roaming-status` aus LuCI | ISC |
 | uclient-fetch | HTTP-Abfrage in `mesh-roaming-status` | ISC |
 | LuCI (luci-base, JavaScript-Framework `form`, `view`, `ui`, `uci`, `fs`) | Oberfläche von `luci-app-mesh-roaming` | Apache-2.0 |
 
-### WLAN-Analyzer (Windows)
+### Auf den abgefragten Routern (nur über Schnittstellen genutzt)
 
 | Software | Wofür | Lizenz |
 |---|---|---|
-| .NET 8 Runtime und Windows Forms | Laufzeit | MIT, © .NET Foundation and Contributors |
-| Windows Native WiFi API (`wlanapi.dll`) | WLAN-Scan | Bestandteil von Windows, Microsoft-Lizenzbedingungen |
-
-Der Analyzer nutzt keine NuGet-Pakete. **Wird er als eigenständige EXE
-veröffentlicht** (`dotnet publish --self-contained`), enthält die EXE die
-.NET-Laufzeit. Dann gehören zur Weitergabe zusätzlich deren Lizenz (MIT) und
-die Drittanbieter-Hinweise von .NET:
-<https://github.com/dotnet/runtime/blob/main/LICENSE.TXT> und
-<https://github.com/dotnet/runtime/blob/main/THIRD-PARTY-NOTICES.TXT>.
-Beim normalen Build (abhängig von installiertem .NET) ist das nicht nötig.
+| ubus | Abfrage von hostapd/usteer/DHCP | LGPL-2.1 |
+| usteer | Roaming-Daten | GPL-2.0 |
+| hostapd | Client- und Kanal-Informationen | BSD-3-Clause |
+| Dropbear | SSH-Server der Router | MIT |
 
 ### Schriften
 
 Die Live-Seite nennt in ihren CSS-Angaben die Schriftfamilien IBM Plex Sans,
 IBM Plex Sans Condensed und IBM Plex Mono (SIL Open Font License 1.1). Sie
 werden **nicht** mitgeliefert und nicht nachgeladen. Ist die Schrift
-installiert, nutzt der Browser sie, sonst eine Systemschrift. Der
-WLAN-Analyzer verwendet die Windows-Systemschrift Segoe UI, ebenfalls nicht
-mitgeliefert.
+installiert, nutzt der Browser sie, sonst eine Systemschrift.
 
 ## 3. Marken
 
-OpenWrt, LuCI, Wi-Fi, Wi-Fi 6/6E/7, Windows, Visual Studio, Raspberry Pi,
-Raspbian, openHAB, InfluxDB, Grafana, TP-Link, Archer und HiLink sind Marken
-oder eingetragene Marken ihrer jeweiligen Inhaber. Sie werden hier nur
-beschreibend verwendet, um Kompatibilität und Einsatzumgebung zu nennen.
-Dieses Projekt steht in keiner Verbindung zu diesen Inhabern und wird von
-ihnen nicht unterstützt.
+OpenWrt, LuCI, Wi-Fi, Raspberry Pi, Raspbian, openHAB, InfluxDB, Grafana,
+TP-Link, Archer und HiLink sind Marken oder eingetragene Marken ihrer
+jeweiligen Inhaber. Sie werden hier nur beschreibend verwendet, um
+Kompatibilität und Einsatzumgebung zu nennen. Dieses Projekt steht in keiner
+Verbindung zu diesen Inhabern und wird von ihnen nicht unterstützt.

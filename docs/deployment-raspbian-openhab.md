@@ -23,6 +23,9 @@ Raspbian/Debian (läuft problemlos neben openHAB auf demselben Gerät).
 - `examples/config.template.json` – Vorlage mit Platzhaltern in spitzen
   Klammern (`<...>`), die vor dem Start ersetzt werden müssen.
 - `systemd/mesh-roaming.service` – systemd-Unit für den Dauerbetrieb.
+- `LICENSE` und `THIRD-PARTY-NOTICES.md` (im Hauptordner) – Lizenz und
+  Hinweise zu genutzter Software Dritter. Gehören bei jeder Installation
+  und Weitergabe dazu.
 
 ## 1. Voraussetzungen auf dem Pi
 
@@ -41,8 +44,17 @@ sudo mkdir -p /opt/mesh-roaming /etc/mesh-roaming
 sudo chown mesh-roaming:mesh-roaming /opt/mesh-roaming /etc/mesh-roaming
 ```
 
-`src/mesh_roaming_pi.py` und `src/mesh-lageplan-live.html` nach
-`/opt/mesh-roaming/` kopieren.
+Programm, Live-Seite, Lizenz und Hinweise nach `/opt/mesh-roaming/` kopieren
+(aus dem Hauptordner des Projekts):
+
+```sh
+sudo cp src/mesh_roaming_pi.py src/mesh-lageplan-live.html \
+        LICENSE THIRD-PARTY-NOTICES.md /opt/mesh-roaming/
+python3 /opt/mesh-roaming/mesh_roaming_pi.py --version
+```
+
+Die letzte Zeile zeigt die installierte Version, z. B.
+`mesh_roaming_pi.py (mesh-roaming-dashboard) 1.2`.
 
 ## 3. Konfiguration
 
@@ -103,6 +115,24 @@ Hostnamen des Pi ersetzen (z. B. `http://192.168.1.50:8765/` oder
 `http://raspberrypi.local:8765/`). Der Port `8765` ist der Default aus
 `http.port` in der `config.json` und kann dort bei Bedarf geändert werden –
 dann entsprechend anpassen.
+
+## 7. Aktualisieren
+
+Bei jeder neuen Version dieselben Dateien wie in Schritt 2 ersetzen, die Unit
+übernehmen und den Dienst neu starten:
+
+```sh
+sudo cp src/mesh_roaming_pi.py src/mesh-lageplan-live.html \
+        LICENSE THIRD-PARTY-NOTICES.md /opt/mesh-roaming/
+sudo cp systemd/mesh-roaming.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl restart mesh-roaming
+python3 /opt/mesh-roaming/mesh_roaming_pi.py --version
+```
+
+Die Version steht auch rechts oben auf der Live-Seite. Zeigt sie zusätzlich
+„Dienst x.y“, laufen Seite und Dienst in verschiedenen Ständen, meist weil
+der Neustart fehlt. Änderungen je Version: [`CHANGELOG.md`](../CHANGELOG.md).
 
 ## Was die Seite automatisch mitbringt
 

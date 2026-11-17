@@ -2,6 +2,17 @@
 
 ## Mesh Roaming Dashboard
 
+### 1.2 (Pakete 1.2-r2)
+
+- Copyright-Inhaber: Benjamin Johann.
+- Hinweise zu Software Dritter nur noch für das Dashboard (OpenWrt und
+  Raspberry Pi); der WLAN-Analyzer hat eigene.
+- Raspberry-Pi-Variante: Lizenz und Hinweise werden mit nach
+  `/opt/mesh-roaming/` kopiert, neuer Abschnitt „Aktualisieren“ in der
+  Anleitung, Versionsangabe in der systemd-Unit.
+- `build-ipk.sh` prüft die Versionsangaben auch in `src/` und `systemd/`.
+- Programmcode unverändert gegenüber 1.2-r1.
+
 ### 1.2 (Pakete 1.2-r1)
 
 - Versionsnummer in allen Programmen: `--version` für Dienst,
@@ -25,6 +36,13 @@
 - Fertige `.apk`-/`.ipk`-Pakete im Repository.
 
 ## WLAN-Analyzer (Windows)
+
+### 1.1.1
+
+- Eigene `LICENSE` und eigene Hinweise zu Software Dritter (nur .NET,
+  Windows Forms, Windows-WLAN-API); keine Angaben des Dashboards mehr im
+  Info-Dialog.
+- Copyright-Inhaber: Benjamin Johann.
 
 ### 1.1.0
 

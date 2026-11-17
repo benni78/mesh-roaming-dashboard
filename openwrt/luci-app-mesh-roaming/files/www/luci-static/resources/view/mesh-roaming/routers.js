@@ -5,7 +5,7 @@
 'require uci';
 'require view';
 
-// Copyright Benni (mesh-roaming-dashboard)
+// Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 var VERSION = '1.2'; // MESH_ROAMING_VERSION
 
