@@ -9,3 +9,9 @@ known_hosts
 # Build-Ausgabe von openwrt/build-ipk.sh/build-apk.sh. Fertige Pakete der
 # aktuellen Version werden bewusst in packages/ eingecheckt (siehe README).
 openwrt/dist/
+
+# Visual Studio / .NET (tools/WlanAnalyzer)
+bin/
+obj/
+.vs/
+*.user

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <AssemblyName>WlanAnalyzer</AssemblyName>
+    <RootNamespace>WlanAnalyzer</RootNamespace>
+    <Version>1.0.0</Version>
+    <Product>WLAN-Analyzer (Mesh Roaming Dashboard)</Product>
+    <Description>Kanalnutzung und Auslastung der WLAN-Netze in Reichweite des PC-eigenen WLAN-Adapters</Description>
+  </PropertyGroup>
+
+</Project>

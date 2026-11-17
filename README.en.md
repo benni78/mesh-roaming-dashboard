@@ -331,6 +331,15 @@ Noncommercial, see below) is probably not compatible with the licence
 requirements of the official feed, which is also redistributed in
 commercial firmware images.
 
+## Extra tool: WLAN Analyzer (Windows)
+
+[`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) contains a standalone Windows
+client (C#, Visual Studio 2022 / .NET 8) that uses the PC's own WiFi adapter
+to read all networks in range and shows the spectrum, channel utilization
+(own vs. foreign networks) and signal history — without router access and
+without InfluxDB. Details (in German):
+[`tools/WlanAnalyzer/README.md`](tools/WlanAnalyzer/README.md).
+
 ## License
 
 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) —

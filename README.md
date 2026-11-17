@@ -342,6 +342,14 @@ siehe unten) mit den Lizenzanforderungen des offiziellen Feeds vermutlich
 nicht vereinbar ist, da dieser auch in kommerziellen Firmware-Images
 mitverteilt wird.
 
+## Zusatzwerkzeug: WLAN-Analyzer (Windows)
+
+[`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) enthält einen eigenständigen
+Windows-Client (C#, Visual Studio 2022 / .NET 8), der mit dem WLAN-Adapter
+des PCs alle Netze in Reichweite ausliest und Spektrum, Kanalauslastung
+(eigene vs. fremde Netze) und Signalverlauf anzeigt – ohne Router-Zugang
+und ohne InfluxDB. Details: [`tools/WlanAnalyzer/README.md`](tools/WlanAnalyzer/README.md).
+
 ## Lizenz
 
 [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0) –

@@ -1,0 +1,11 @@
+{
+  "profiles": {
+    "WlanAnalyzer": {
+      "commandName": "Project"
+    },
+    "WlanAnalyzer (Demo-Daten)": {
+      "commandName": "Project",
+      "commandLineArgs": "--demo"
+    }
+  }
+}
