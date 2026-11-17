@@ -8,7 +8,8 @@ der PC selbst aus der Luft.
 
 ![WLAN-Analyzer mit Demo-Daten](docs/wlan-analyzer-demo.png)
 
-*Ansicht mit simulierten Demo-Daten (`--demo`) – keine echten Netze.*
+*Ansicht mit simulierten Demo-Daten (`--demo --view load`) – keine echten Netze.
+Im Demo-Modus sind beim Start schon 30 Minuten simulierter Verlauf vorhanden.*
 
 ## Was angezeigt wird
 
@@ -34,6 +35,13 @@ Darunter:
   sichtbare Netze bleiben zwei Minuten grau in der Liste.
 - **Signalverlauf** der letzten 10 Minuten für das gewählte Band. Das in der
   Liste ausgewählte Netz wird in allen Diagrammen weiß hervorgehoben.
+- **Auslastungsverlauf** der letzten 30 Minuten (Reiter neben dem
+  Signalverlauf): oben eine Heatmap Kanal × Zeit (Farbe = Auslastung,
+  schraffiert = geschätzt), darunter für einen Kanal der Anteil eigener und
+  fremder Netze über die Zeit. Den Kanal wählt ein Klick auf eine Zeile der
+  Heatmap oder auf einen Balken der Kanalauslastung; ohne Auswahl wird der
+  Kanal des verbundenen Netzes gezeigt. Wird ein Netz nachträglich als
+  eigenes markiert, gilt das auch rückwirkend für den Verlauf.
 - **CSV-Export** des aktuellen Scans (Semikolon, für Excel).
 
 ## Woher die Auslastung kommt – und was sie bedeutet
@@ -102,6 +110,7 @@ Optionen:
 |---|---|
 | `--demo` | simulierte Netze statt echtem Adapter (zum Ausprobieren) |
 | `--band 24\|5\|6` | mit diesem Band-Reiter starten (Standard 5) |
+| `--view signal\|load` | unten Signal- oder Auslastungsverlauf zeigen (Standard signal) |
 | `--screenshot datei.png` | nach dem ersten Scan Fenster als Bild speichern und beenden |
 
 Eigenständige EXE ohne installierte .NET-Laufzeit:
@@ -133,7 +142,7 @@ dotnet publish WlanAnalyzer -c Release -r win-x64 --self-contained -p:PublishSin
 
 ## Datenschutz
 
-Der Analyzer speichert keine Scans. Liste und Signalverlauf liegen nur im
+Der Analyzer speichert keine Scans. Liste, Signal- und Auslastungsverlauf liegen nur im
 Arbeitsspeicher und sind nach dem Beenden weg. Nur der CSV-Export schreibt
 eine Datei. Sie enthält SSIDs und BSSIDs auch fremder Netze und sollte nicht
 weitergegeben werden.

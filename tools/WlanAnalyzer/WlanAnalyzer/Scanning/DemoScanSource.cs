@@ -4,7 +4,8 @@ namespace WlanAnalyzer.Scanning;
 
 /// <summary>
 /// Simulierte Umgebung (frei erfundene Netze) zum Ausprobieren der Oberflaeche
-/// ohne WLAN-Adapter. Signal und Auslastung schwanken bei jedem Scan leicht.
+/// ohne WLAN-Adapter. Signal und Auslastung schwanken bei jedem Scan leicht,
+/// die Auslastung zusaetzlich langsam ueber die Zeit (fuer den Verlauf).
 /// </summary>
 public sealed class DemoScanSource : IScanSource
 {
@@ -44,14 +45,31 @@ public sealed class DemoScanSource : IScanSource
     public ScanResult Scan(Guid interfaceId)
     {
         Thread.Sleep(400);
+        return SimulateAt(DateTime.Now);
+    }
+
+    /// <summary>Simulierte Scans der Vergangenheit (aelteste zuerst), damit die Verlaeufe sofort etwas zeigen.</summary>
+    public IEnumerable<ScanResult> Backfill(TimeSpan span, TimeSpan step)
+    {
+        var now = DateTime.Now;
+        for (var t = now - span + step; t < now; t += step)
+            yield return SimulateAt(t);
+    }
+
+    private ScanResult SimulateAt(DateTime time)
+    {
+        double minutes = (time - DateTime.Today).TotalMinutes;
         var list = new List<BssInfo>();
-        foreach (var n in Nets)
+        for (int k = 0; k < Nets.Length; k++)
         {
+            var n = Nets[k];
             int rssi = n.Rssi + _random.Next(-3, 4);
             // schwaechste Netze tauchen nicht in jedem Scan auf
             if (rssi < -88 && _random.NextDouble() < 0.4)
                 continue;
-            double? util = n.Utilization is double u ? Math.Clamp(u + _random.Next(-6, 7), 0, 100) : null;
+            double? util = n.Utilization is double u
+                ? Math.Clamp(u + Drift(n, k, minutes) + _random.Next(-4, 5), 0, 100)
+                : null;
             list.Add(new BssInfo
             {
                 Bssid = n.Bssid,
@@ -70,7 +88,16 @@ public sealed class DemoScanSource : IScanSource
                 IsConnected = n.Bssid == ConnectedBssid,
             });
         }
-        return new ScanResult(list, "Heimnetz", ConnectedBssid, DateTime.Now, true);
+        return new ScanResult(list, "Heimnetz", ConnectedBssid, time, true);
+    }
+
+    // Langsame Schwankung je Netz; "Nachbar-WLAN_5G" streamt alle 12 min fuer 4 min.
+    private static double Drift(DemoNet n, int k, double minutes)
+    {
+        double wave = 10 * Math.Sin(2 * Math.PI * minutes / (7 + k) + k);
+        if (n.Ssid == "Nachbar-WLAN_5G" && minutes % 12 < 4)
+            wave += 40;
+        return wave;
     }
 
     public void Dispose() { }

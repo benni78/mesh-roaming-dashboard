@@ -18,6 +18,9 @@ internal sealed class ChannelLoadChart : ChartBase
     public IReadOnlyList<ChannelLoad> Loads { get; set; } = Array.Empty<ChannelLoad>();
     public ChannelRecommendation? Recommendation { get; set; }
 
+    /// <summary>Klick auf einen Balken (z. B. um dessen Verlauf zu zeigen).</summary>
+    public event Action<int>? ChannelClicked;
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
@@ -109,7 +112,7 @@ internal sealed class ChannelLoadChart : ChartBase
         if (Band == WifiBand.Band5)
             DrawLegendItem(g, ref x, y, warn, "DFS-Kanal", Theme.Small);
         using var dim = new SolidBrush(Theme.TextDim);
-        g.DrawString("Zahl = Netze auf/über dem Kanal", Theme.Small, dim, x, y);
+        g.DrawString("Zahl = Netze auf/über dem Kanal · Klick = Verlauf", Theme.Small, dim, x, y);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -134,6 +137,14 @@ internal sealed class ChannelLoadChart : ChartBase
             $"davon eigene Netze: {hit.OwnPct:0} %, fremde: {hit.ForeignPct:0} %\n" +
             $"Netze auf/über dem Kanal: {hit.OwnCount} eigene, {hit.ForeignCount} fremde";
         _toolTip.Show(text, this, e.X + S(14), e.Y + S(14));
+    }
+
+    protected override void OnMouseClick(MouseEventArgs e)
+    {
+        base.OnMouseClick(e);
+        var hit = _hits.FirstOrDefault(h => h.Hit.Contains(e.Location)).Load;
+        if (e.Button == MouseButtons.Left && hit is not null)
+            ChannelClicked?.Invoke(hit.Channel);
     }
 
     protected override void OnMouseLeave(EventArgs e)

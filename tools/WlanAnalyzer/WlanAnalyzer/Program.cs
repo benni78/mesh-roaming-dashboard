@@ -10,6 +10,7 @@ internal static class Program
     //   WlanAnalyzer.exe                   echte Daten vom WLAN-Adapter des PCs
     //   WlanAnalyzer.exe --demo            simulierte Netze (zum Ausprobieren ohne WLAN)
     //   WlanAnalyzer.exe --band 24|5|6     mit diesem Band-Reiter starten (Standard: 5)
+    //   WlanAnalyzer.exe --view signal|load  unten Signal- oder Auslastungsverlauf zeigen
     //   WlanAnalyzer.exe --screenshot x.png  nach dem ersten Scan Fenster als Bild speichern
     //                                        und beenden (fuer Doku-Screenshots)
     [STAThread]
@@ -25,6 +26,8 @@ internal static class Program
             "6" => WifiBand.Band6,
             _ => WifiBand.Band5,
         };
+
+        bool loadView = string.Equals(Option(args, "--view"), "load", StringComparison.OrdinalIgnoreCase);
 
         IScanSource source;
         try
@@ -44,7 +47,7 @@ internal static class Program
         }
 
         using (source)
-            Application.Run(new MainForm(source, band, screenshot));
+            Application.Run(new MainForm(source, band, screenshot, loadView));
     }
 
     private static string? Option(string[] args, string name)

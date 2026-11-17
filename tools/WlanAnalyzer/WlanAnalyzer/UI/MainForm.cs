@@ -9,7 +9,7 @@ namespace WlanAnalyzer.UI;
 
 /// <summary>
 /// Hauptfenster: oben je Band Spektrum + Kanalauslastung (Reiter), unten die
-/// Liste aller APs und der Signalverlauf.
+/// Liste aller APs und wahlweise Signal- oder Auslastungsverlauf.
 /// </summary>
 internal sealed class MainForm : Form
 {
@@ -18,6 +18,7 @@ internal sealed class MainForm : Form
     private readonly IScanSource _source;
     private readonly string? _screenshotPath;
     private readonly WifiBand _startBand;
+    private readonly bool _startWithLoadHistory;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly NetworkTracker _tracker = new();
     private readonly Dictionary<WifiBand, (TabPage Page, SpectrumChart Spectrum, ChannelLoadChart Load)> _bands = new();
@@ -48,6 +49,9 @@ internal sealed class MainForm : Form
         HideSelection = false,
     };
     private readonly SignalHistoryChart _history = new() { Dock = DockStyle.Fill };
+    private readonly LoadHistoryChart _loadHistory = new() { Dock = DockStyle.Fill };
+    private readonly TabControl _historyTabs = new() { Dock = DockStyle.Fill };
+    private readonly Dictionary<WifiBand, int?> _selectedChannel = new();
     private readonly ToolStripStatusLabel _statusScan = new() { Spring = true, TextAlign = ContentAlignment.MiddleLeft };
     private readonly ToolStripStatusLabel _statusCount = new();
     private readonly System.Windows.Forms.Timer _timer = new();
@@ -58,8 +62,9 @@ internal sealed class MainForm : Form
     private int _sortColumn = 3;
     private bool _sortDescending = true;
 
-    public MainForm(IScanSource source, WifiBand startBand, string? screenshotPath)
+    public MainForm(IScanSource source, WifiBand startBand, string? screenshotPath, bool startWithLoadHistory = false)
     {
+        _startWithLoadHistory = startWithLoadHistory;
         _source = source;
         _screenshotPath = screenshotPath;
         _startBand = startBand;
@@ -101,6 +106,7 @@ internal sealed class MainForm : Form
         {
             var spectrum = new SpectrumChart { Dock = DockStyle.Fill, Band = band, IsOwn = IsOwn };
             var load = new ChannelLoadChart { Dock = DockStyle.Fill, Band = band };
+            load.ChannelClicked += ch => ShowLoadHistory(band, ch);
             var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
@@ -127,9 +133,19 @@ internal sealed class MainForm : Form
         _list.ContextMenuStrip = BuildContextMenu();
 
         _history.IsOwn = IsOwn;
+        _loadHistory.IsOwn = IsOwn;
+        _loadHistory.ChannelClicked += ch => _selectedChannel[_loadHistory.Band] = ch;
+        var signalPage = new TabPage("Signalverlauf") { BackColor = Theme.Background, Padding = Padding.Empty };
+        signalPage.Controls.Add(_history);
+        var loadPage = new TabPage("Auslastungsverlauf") { BackColor = Theme.Background, Padding = Padding.Empty };
+        loadPage.Controls.Add(_loadHistory);
+        _historyTabs.TabPages.Add(signalPage);
+        _historyTabs.TabPages.Add(loadPage);
+        _historyTabs.SelectedIndex = _startWithLoadHistory ? 1 : 0;
+
         var bottom = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Vertical };
         bottom.Panel1.Controls.Add(_list);
-        bottom.Panel2.Controls.Add(_history);
+        bottom.Panel2.Controls.Add(_historyTabs);
 
         var main = new SplitContainer { Dock = DockStyle.Fill, Orientation = Orientation.Horizontal };
         main.Panel1.Controls.Add(_tabs);
@@ -209,6 +225,11 @@ internal sealed class MainForm : Form
                 _settings.Save();
                 _tracker.Clear();
                 _selectedBssid = null;
+                _selectedChannel.Clear();
+                // Demo: mit 30 min simuliertem Verlauf starten, damit die Verlaeufe etwas zeigen
+                if (_source is DemoScanSource demo)
+                    foreach (var r in demo.Backfill(NetworkTracker.LoadHistoryWindow, TimeSpan.FromSeconds(_settings.IntervalSeconds)))
+                        _tracker.Update(r.Networks, r.Time);
                 await ScanAsync();
             }
         };
@@ -366,6 +387,24 @@ internal sealed class MainForm : Form
         _history.Networks = _tracker.All;
         _history.SelectedBssid = _selectedBssid;
         _history.Invalidate();
+
+        _loadHistory.Band = band;
+        _loadHistory.Snapshots = _tracker.Snapshots;
+        _loadHistory.SelectedChannel = _selectedChannel.GetValueOrDefault(band);
+        _loadHistory.OwnKey = OwnKey();
+        _loadHistory.Invalidate();
+    }
+
+    /// <summary>Alles, wovon die Zuordnung eigen/fremd abhaengt.</summary>
+    private string OwnKey() =>
+        string.Join("\n", _settings.OwnSsids.OrderBy(s => s, StringComparer.Ordinal)) +
+        "|" + _settings.ConnectedIsOwn + "|" + (_settings.ConnectedIsOwn ? _last?.ConnectedSsid : null);
+
+    private void ShowLoadHistory(WifiBand band, int channel)
+    {
+        _selectedChannel[band] = channel;
+        _historyTabs.SelectedIndex = 1;
+        RefreshHistory();
     }
 
     private void RefreshList()
