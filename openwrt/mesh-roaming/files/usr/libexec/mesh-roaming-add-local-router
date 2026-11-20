@@ -1,0 +1,64 @@
+#!/bin/sh
+# Traegt den eigenen Router ("Dieser Router", lokal ohne SSH) als
+# Standard-Router in /etc/config/mesh-roaming ein - aber nur, wenn es dort
+# eine "config global"-Sektion und noch KEINEN einzigen "router"-Eintrag gibt.
+# Vorhandene Router und eine von Hand gepflegte config.json (ohne
+# UCI-Grundeinstellungen) bleiben unangetastet.
+#
+# Aufgerufen von postinst (Erstinstallation/Upgrade) und vom Init-Skript vor
+# jedem Start/Reload - so laeuft der Dienst direkt nach der Installation, und
+# werden spaeter alle Router geloescht, erscheint der eigene wieder. Wer ihn
+# nicht auf der Karte haben will, setzt ihn auf "Deaktiviert".
+#
+# Exit-Code: 0 = Eintrag angelegt, 1 = nichts zu tun.
+#
+# Version 1.3 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Copyright Benjamin Johann (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+CONFIG=mesh-roaming
+
+if [ "$1" = "--version" ]; then
+	echo "mesh-roaming-add-local-router (mesh-roaming-dashboard) 1.3"
+	exit 0
+fi
+
+[ "$(uci -q get $CONFIG.main)" = "global" ] || exit 1
+uci -q show $CONFIG | grep -q "=router$" && exit 1
+
+# Name und ID aus dem Hostnamen (z. B. "IBN_02" -> "router-ibn-02")
+name=$(uci -q get system.@system[0].hostname)
+[ -n "$name" ] || name=$(cat /proc/sys/kernel/hostname 2>/dev/null)
+[ -n "$name" ] || name=OpenWrt
+slug=$(echo "$name" | tr 'A-Z' 'a-z' | sed -e 's/[^a-z0-9][^a-z0-9]*/-/g' -e 's/^-*//' -e 's/-*$//')
+[ -n "$slug" ] || slug=lokal
+
+# IP: aktuelle IPv4-Adresse des LAN-Interfaces, sonst (z. B. Interface noch
+# nicht oben) die statisch konfigurierte - aber nur bei proto=static, bei
+# DHCP steht in network.lan.ipaddr oft noch ein alter Wert -, sonst
+# localhost. Die Abfrage selbst laeuft wegen local=1 ohnehin lokal - die IP
+# dient nur der Anzeige und als Mesh-Management-IP fuer die usteer-Zuordnung.
+ip=$(ubus call network.interface.lan status 2>/dev/null | jsonfilter -e '@["ipv4-address"][0].address' 2>/dev/null)
+if [ -z "$ip" ] && [ "$(uci -q get network.lan.proto)" = "static" ]; then
+	ip=$(uci -q get network.lan.ipaddr | awk '{print $1}')
+	ip=${ip%%/*}
+fi
+[ -n "$ip" ] || ip=127.0.0.1
+
+# Position: Kartenmitte
+w=$(uci -q get $CONFIG.main.map_viewbox_width); w=${w:-900}
+h=$(uci -q get $CONFIG.main.map_viewbox_height); h=${h:-600}
+
+sid=$(uci add $CONFIG router) || exit 1
+uci set $CONFIG.$sid.id="router-$slug"
+uci set $CONFIG.$sid.name="$name"
+uci set $CONFIG.$sid.room="Dieser Router"
+uci set $CONFIG.$sid.ip="$ip"
+uci set $CONFIG.$sid.role=ap
+uci set $CONFIG.$sid.local=1
+uci set $CONFIG.$sid.map_x=$((w / 2))
+uci set $CONFIG.$sid.map_y=$((h / 2))
+uci commit $CONFIG
+
+logger -t mesh-roaming "Eigenen Router als Standard eingetragen: $name ($ip, ID router-$slug)"
+exit 0

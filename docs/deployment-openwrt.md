@@ -181,10 +181,15 @@ inconsistent` fehl, war die installierte `.apk`-Datei noch APK v2 statt
 v3 – Schritt 1b (v2→v3-Umwandlung) nachholen.
 
 `mesh-roaming` wird dabei automatisch aktiviert und gestartet (`postinst`
-ruft `/etc/init.d/mesh-roaming enable`, `stop` und `start` auf). Solange
-noch kein Router eingetragen ist, startet der Dienst nicht und schreibt
-einmal „Keine Router konfiguriert“ ins Log; nach dem Speichern in LuCI
-(oder `/etc/init.d/mesh-roaming reload`) startet er.
+ruft `/etc/init.d/mesh-roaming enable`, `stop` und `start` auf). Gibt es
+noch keinen einzigen Router-Eintrag, trägt `postinst` (und das Init-Skript
+vor jedem Start) den eigenen Router als „Dieser Router“ ein
+(`/usr/libexec/mesh-roaming-add-local-router`): Name und ID aus dem
+Hostnamen, IP-Adresse des LAN-Interfaces, Abfrage lokal ohne SSH. Damit
+läuft der Dienst direkt nach der Installation. Vorhandene Router und eine
+von Hand gepflegte `config.json` (ohne `config global` in UCI) bleiben
+unangetastet. Ist der einzige Router deaktiviert, startet der Dienst nicht
+und schreibt einmal „Keine Router konfiguriert“ ins Log.
 
 ## 3. Konfiguration
 
@@ -193,7 +198,10 @@ ist:
 
 ### a) Über LuCI (wenn installiert)
 
-*Dienste → Mesh Roaming Dashboard* in der LuCI-Oberfläche:
+*Dienste → Mesh Roaming Dashboard* in der LuCI-Oberfläche. Fehlt der
+Menüpunkt nach der Installation, in LuCI ab- und wieder anmelden: LuCI
+speichert das Menü pro Anmeldung im Browser (Neuladen mit Strg+F5 oder ein
+Neustart von Diensten auf dem Router reicht nicht).
 
 - **Grundeinstellungen** – Bind-Adresse/Port, SSH-Zugangsdaten, Schwellwerte,
   Kartenlayout, Standard-SSID-Farbreihenfolge, MQTT (optional, siehe unten).

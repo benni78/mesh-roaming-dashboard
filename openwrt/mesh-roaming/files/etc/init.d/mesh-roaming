@@ -20,6 +20,7 @@ PROG=/usr/bin/python3
 SCRIPT=/usr/share/mesh-roaming/mesh_roaming_pi.py
 CONFIG_JSON=/etc/mesh-roaming/config.json
 UCI2JSON=/usr/libexec/mesh-roaming-uci2json
+ADD_LOCAL=/usr/libexec/mesh-roaming-add-local-router
 
 regenerate_config_from_uci() {
 	[ -x "$UCI2JSON" ] || return 0
@@ -41,6 +42,8 @@ config_has_no_routers() {
 }
 
 start_service() {
+	# Ohne einen einzigen Router den eigenen als Standard eintragen (#8)
+	[ -x "$ADD_LOCAL" ] && "$ADD_LOCAL"
 	regenerate_config_from_uci
 
 	mkdir -p /etc/mesh-roaming

@@ -7,6 +7,11 @@
 # "Command failed: ubus call service delete ... (Not found)".
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
+# Ohne einen einzigen Router den eigenen als Standard eintragen (#8) -
+# deckt Erstinstallation und Upgrades bestehender Installationen ab. Im
+# Image-Build uebernimmt das das Init-Skript beim ersten Start.
+/usr/libexec/mesh-roaming-add-local-router
+
 /etc/init.d/mesh-roaming enable
 /etc/init.d/mesh-roaming stop 2>/dev/null
 /etc/init.d/mesh-roaming start

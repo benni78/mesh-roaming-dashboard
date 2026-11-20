@@ -318,24 +318,24 @@ aktuellen Version (Architektur `all`, laufen auf jedem Target):
 
 | Datei | für |
 |---|---|
-| `mesh-roaming_1.3-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.3-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.3-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.3-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+| `mesh-roaming_1.3-r2_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.3-r2_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.3-r2_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.3-r2_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
 
 ```sh
 # auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
-scp -O packages/*_1.3-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_1.3-r2_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # auf dem Router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.3-r1_all.apk ./luci-app-mesh-roaming_1.3-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_1.3-r2_all.apk ./luci-app-mesh-roaming_1.3-r2_all.apk
 
 # bzw. auf dem Router (opkg, bis OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.3-r1_all.ipk ./luci-app-mesh-roaming_1.3-r1_all.ipk
+opkg install ./mesh-roaming_1.3-r2_all.ipk ./luci-app-mesh-roaming_1.3-r2_all.ipk
 ```
 
 Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
@@ -344,10 +344,15 @@ OpenWrt-Paketquellen, deshalb vorher `apk update` bzw. `opkg update`.
 `--allow-untrusted` ist nötig, weil die Pakete nicht mit einem
 OpenWrt-Schlüssel signiert sind. Die `.apk`-Dateien sind im Format APK v2
 gebaut und auf OpenWrt 25.12.6 (x86/64) getestet, die `.ipk`-Dateien auf
-OpenWrt 23.05.6 (x86/64). Danach in LuCI unter
-*Dienste → Mesh Roaming Dashboard* die Router eintragen. Bis dahin startet
-der Dienst nicht und schreibt nur einmal „Keine Router konfiguriert“ ins
-Log (`logread`); nach dem Speichern in LuCI startet er automatisch.
+OpenWrt 23.05.6 (x86/64). Danach in LuCI **ab- und wieder anmelden**
+(LuCI merkt sich das Menü pro Anmeldung im Browser; ohne Neuanmeldung fehlt
+der neue Eintrag, ggf. sogar der ganze Menüpunkt *Dienste*) und unter
+*Dienste → Mesh Roaming Dashboard* die weiteren Router eintragen. Der
+eigene Router ist schon als „Dieser Router“ eingetragen (Name und IP aus
+Hostname und LAN), der Dienst läuft also direkt nach der Installation.
+Ohne einen einzigen Router-Eintrag trägt er den eigenen beim nächsten
+Start wieder ein. Wer ihn nicht auf der Karte haben will, setzt ihn auf
+„Deaktiviert“.
 
 Beim Upgrade meldet `opkg` unter „Collected errors“ ggf.
 `resolve_conffiles: Existing conffile /etc/config/mesh-roaming is different
@@ -438,7 +443,7 @@ PolyForm Noncommercial) und eigenen
 |---|---|---|
 | Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 1.3 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
 | Raspberry-Pi-Variante (`src/`, `systemd/`) | 1.3 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
-| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.3-r1 | `apk info -v` bzw. `opkg list-installed` |
+| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.3-r2 | `apk info -v` bzw. `opkg list-installed` |
 | WLAN-Analyzer | 1.1.1 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
 
 Änderungen je Version: [`CHANGELOG.md`](CHANGELOG.md). Alle Versionsangaben

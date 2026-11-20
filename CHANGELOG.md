@@ -2,6 +2,22 @@
 
 ## Mesh Roaming Dashboard
 
+### 1.3 (Pakete 1.3-r2)
+
+- Der eigene Router wird automatisch als „Dieser Router“ eingetragen
+  (Issue #8), wenn es noch keinen einzigen Router-Eintrag gibt: bei
+  Installation, Upgrade und vor jedem Start des Dienstes. Name und ID aus
+  dem Hostnamen, IP-Adresse des LAN-Interfaces, Abfrage lokal ohne SSH. Der
+  Dienst läuft damit direkt nach der Installation, statt wegen fehlender
+  Router nicht zu starten. Vorhandene Router und eine von Hand gepflegte
+  `config.json` bleiben unangetastet.
+- Doku: Nach der Installation in LuCI ab- und wieder anmelden, sonst fehlt
+  der Menüeintrag (LuCI speichert das Menü pro Anmeldung im Browser).
+- Getestet auf OpenWrt 23.05.6 (opkg) und 25.12.6 (apk): Erstinstallation,
+  Upgrade von 1.2-r3 ohne Router und von 1.3-r1 mit Routern, alle Router
+  gelöscht, nur deaktivierter Router, `config.json` ohne UCI.
+- Programmcode (`mesh_roaming_pi.py`) und Raspberry-Pi-Variante unverändert.
+
 ### 1.3 (Pakete 1.3-r1)
 
 - **Messpunkte** (Issue #5): Router mit der Rolle „Messpunkt“
