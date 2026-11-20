@@ -12,14 +12,14 @@
 #
 # Exit-Code: 0 = Eintrag angelegt, 1 = nichts zu tun.
 #
-# Version 2.1 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Version 2.2 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
 # Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 CONFIG=mesh-roaming
 
 if [ "$1" = "--version" ]; then
-	echo "mesh-roaming-add-local-router (mesh-roaming-dashboard) 2.1"
+	echo "mesh-roaming-add-local-router (mesh-roaming-dashboard) 2.2"
 	exit 0
 fi
 

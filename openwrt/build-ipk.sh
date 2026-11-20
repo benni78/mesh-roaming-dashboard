@@ -1,5 +1,5 @@
 #!/bin/sh
-# Version 2.1 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Version 2.2 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
 # Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #

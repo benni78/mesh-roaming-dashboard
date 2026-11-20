@@ -1,6 +1,6 @@
 # WLAN-Analyzer (Windows)
 
-Version 1.1.1 · Copyright Benjamin Johann · Lizenz: PolyForm Noncommercial
+Version 1.2.0 · Copyright Benjamin Johann · Lizenz: PolyForm Noncommercial
 1.0.0 (siehe [`LICENSE`](LICENSE)) · Hinweise zu genutzter Software Dritter:
 [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md)
 
@@ -23,9 +23,12 @@ Je Band (2,4 / 5 / 6 GHz) ein Reiter mit:
   Bandbreite (20/40/80/160/320 MHz), Höhe = Signalstärke. Eigene Netze
   (★) kräftig in kühlen Farben, fremde blass in warmen Farben. Im
   5-GHz-Band ist der DFS-Bereich (Kanal 52–144) hinterlegt.
-- **Kanalauslastung:** je 20-MHz-Kanal ein Balken, unten der Anteil eigener,
-  oben der Anteil fremder Netze. Die Zahl über dem Balken ist die Anzahl der
-  Netze, die den Kanal ganz oder teilweise belegen. Tooltip mit Details.
+- **Netze je Kanal:** je 20-MHz-Kanal die Anzahl der Netze, die den Kanal
+  ganz oder teilweise belegen, unten eigene, oben fremde – maßstäblich zur
+  größten Anzahl. Fett = Kanal mit eigenem Netz. Tooltip mit Details.
+- **Gemessene Auslastung:** je Kanal die von Access Points gemeldete
+  Auslastung in % (BSS Load). Kanäle ohne Meldung bleiben leer; meldet im
+  ganzen Band kein AP, steht dort ein Hinweis statt eines Diagramms.
 - **Empfehlung:** der Kanal mit der geringsten Belegung durch *fremde* Netze –
   im 2,4-GHz-Band einer der überlappungsfreien Kanäle 1/6/11, im 5- und
   6-GHz-Band ein 80-MHz-Block (bei Gleichstand ohne DFS).
@@ -40,10 +43,10 @@ Darunter:
 - **Signalverlauf** der letzten 10 Minuten für das gewählte Band. Das in der
   Liste ausgewählte Netz wird in allen Diagrammen weiß hervorgehoben.
 - **Auslastungsverlauf** der letzten 30 Minuten (Reiter neben dem
-  Signalverlauf): oben eine Heatmap Kanal × Zeit (Farbe = Auslastung,
-  schraffiert = geschätzt), darunter für einen Kanal der Anteil eigener und
-  fremder Netze über die Zeit. Den Kanal wählt ein Klick auf eine Zeile der
-  Heatmap oder auf einen Balken der Kanalauslastung; ohne Auswahl wird der
+  Signalverlauf): oben eine Heatmap Kanal × Zeit (Farbe = gemeldete
+  Auslastung, ohne Meldung leer), darunter für einen Kanal die Anzahl
+  eigener und fremder Netze über die Zeit. Den Kanal wählt ein Klick auf eine
+  Zeile der Heatmap oder auf einen Balken; ohne Auswahl wird der
   Kanal des verbundenen Netzes gezeigt. Wird ein Netz nachträglich als
   eigenes markiert, gilt das auch rückwirkend für den Verlauf.
 - **CSV-Export** des aktuellen Scans (Semikolon, für Excel).
@@ -51,22 +54,22 @@ Darunter:
 ## Woher die Auslastung kommt – und was sie bedeutet
 
 Ein PC-WLAN-Adapter kann die Belegung eines Kanals nicht selbst messen.
-Der Analyzer nutzt zwei Quellen:
+Eine Auslastung in % zeigt der Analyzer deshalb **nur, wenn ein Access Point
+sie meldet:** Viele APs senden in ihren Beacons das Element *BSS Load*
+(IEEE 802.11, Element 11). Darin steht, wie viel Prozent der Zeit der AP
+seinen Kanal als belegt erkannt hat – durch alle Netze, eigene wie fremde –
+und wie viele Geräte bei ihm angemeldet sind. Melden mehrere APs denselben
+Kanal, gilt der höchste Wert.
 
-1. **Gemessen (volle Balken):** Viele Access Points senden in ihren Beacons
-   das Element *BSS Load* (IEEE 802.11, Element 11). Darin steht, wie viel
-   Prozent der Zeit der AP seinen Kanal als belegt erkannt hat – durch alle
-   Netze, eigene wie fremde – und wie viele Geräte bei ihm angemeldet sind.
-   Melden mehrere APs denselben Kanal, gilt der höchste Wert.
-2. **Geschätzt (schraffierte Balken):** Sendet kein AP auf dem Kanal BSS Load,
-   wird ein *Belegungsindex* aus Anzahl und Signalstärke der Netze berechnet,
-   die den Kanal überlappen (je Netz bis zu 20 Prozentpunkte, gewichtet von
-   −95 dBm = 5 % bis −50 dBm = 100 %). Das ist keine Messung, sondern ein
-   Anhaltspunkt für „wie voll ist es hier“.
+Meldet kein AP diesen Wert, gibt es **keine Prozentangabe** (bis 1.1.1
+erschien hier ein geschätzter „Belegungsindex“ in %, der wie eine Messung
+wirkte). Anhaltspunkt ist dann die **Anzahl der Netze** je Kanal, getrennt
+nach eigenen und fremden.
 
-Die **Aufteilung eigen/fremd** erfolgt im Verhältnis der angemeldeten Geräte
-(aus BSS Load) der beteiligten APs, ohne diese Angabe im Verhältnis der
-signalgewichteten Netzanzahl.
+Für die **Kanalempfehlung** wird intern weiterhin eine Schätzung aus Anzahl
+und Signalstärke der fremden Netze verwendet (je Netz bis zu 20 Punkte,
+gewichtet von −95 dBm = 5 % bis −50 dBm = 100 %), bzw. die gemeldete
+Auslastung, wenn vorhanden. Sie wird nicht als Prozentwert angezeigt.
 
 Damit die eigenen OpenWrt-Router BSS Load senden, muss es in hostapd
 aktiviert sein (`bss_load_update_period`). Das ist auf OpenWrt nicht in

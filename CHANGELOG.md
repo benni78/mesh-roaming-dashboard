@@ -2,6 +2,21 @@
 
 ## Mesh Roaming Dashboard
 
+### 2.2 (Pakete 2.2-r1)
+
+- **Nachbarkanäle: Anzahl und Auslastung getrennt** (Issue #15): Statt eines
+  Balkens mit gemessener *oder geschätzter* Belegung in % zeigt jedes Band
+  zwei Diagramme: „Anzahl der Netze je Kanal“ (eigen/fremd, maßstäblich zur
+  größten Anzahl) und „Gemessene Auslastung“ (nur von APs gemeldete Werte,
+  BSS Load). Ohne Meldung gibt es keine Prozentangabe, sondern einen
+  Hinweis. Die Schätzung dient nur noch intern der Kanalempfehlung.
+- **Eigene Netze erkannt:** Als eigen gilt jetzt auch das Netz, mit dem ein
+  Client-Interface (Messpunkt) verbunden ist. Wird in einem Band kein
+  eigenes Netz erkannt, weist die Seite darauf hin.
+- MQTT: `…/scan/<band>/channels` (enthielt geschätzte %) ersetzt durch
+  `…/scan/<band>/networks` (Anzahl eigen/fremd je Kanal) und
+  `…/scan/<band>/utilization` (nur gemessene Kanäle).
+
 ### 2.1 (Pakete 2.1-r1)
 
 - **Spektrum mit Netznamen** (Issue #14): Über den Balkendiagrammen der
@@ -165,6 +180,17 @@
 - Fertige `.apk`-/`.ipk`-Pakete im Repository.
 
 ## WLAN-Analyzer (Windows)
+
+### 1.2.0
+
+- „Kanalauslastung“ aufgeteilt in **„Netze je Kanal“** (Anzahl eigen/fremd,
+  maßstäblich zur größten Anzahl) und **„Gemessene Auslastung“** (nur BSS
+  Load der APs). Ein geschätzter Belegungsindex wird nicht mehr in %
+  angezeigt (Issue #15).
+- Auslastungsverlauf: Die Heatmap zeigt nur gemeldete Auslastung (ohne
+  Meldung leer), die Detailansicht die Anzahl eigener/fremder Netze über die
+  Zeit.
+- Fett = Kanal mit eigenem Netz.
 
 ### 1.1.1
 

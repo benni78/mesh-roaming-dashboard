@@ -21,7 +21,7 @@ internal sealed class MainForm : Form
     private readonly bool _startWithLoadHistory;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly NetworkTracker _tracker = new();
-    private readonly Dictionary<WifiBand, (TabPage Page, SpectrumChart Spectrum, ChannelLoadChart Load)> _bands = new();
+    private readonly Dictionary<WifiBand, (TabPage Page, SpectrumChart Spectrum, ChannelLoadChart Load, ChannelLoadChart Util)> _bands = new();
     private readonly Dictionary<WifiBand, ChannelRecommendation> _recommendations = new();
 
     private readonly ToolStripComboBox _adapterBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, AutoSize = false, Width = 300 };
@@ -106,17 +106,23 @@ internal sealed class MainForm : Form
         foreach (var band in WifiChannels.AllBands)
         {
             var spectrum = new SpectrumChart { Dock = DockStyle.Fill, Band = band, IsOwn = IsOwn };
-            var load = new ChannelLoadChart { Dock = DockStyle.Fill, Band = band };
+            // Anzahl der Netze und gemessene Auslastung in getrennten Diagrammen:
+            // eine geschaetzte Auslastung wird nicht in % angezeigt
+            var load = new ChannelLoadChart { Dock = DockStyle.Fill, Band = band, Mode = ChannelChartMode.Networks };
+            var util = new ChannelLoadChart { Dock = DockStyle.Fill, Band = band, Mode = ChannelChartMode.Utilization };
             load.ChannelClicked += ch => ShowLoadHistory(band, ch);
-            var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 55));
-            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 45));
+            util.ChannelClicked += ch => ShowLoadHistory(band, ch);
+            var grid = new TableLayoutPanel { Dock = DockStyle.Fill, RowCount = 3, ColumnCount = 1, BackColor = Theme.Background, Margin = Padding.Empty };
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 44));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 28));
+            grid.RowStyles.Add(new RowStyle(SizeType.Percent, 28));
             grid.Controls.Add(spectrum, 0, 0);
             grid.Controls.Add(load, 0, 1);
+            grid.Controls.Add(util, 0, 2);
             var page = new TabPage(WifiChannels.Name(band)) { BackColor = Theme.Background, Padding = Padding.Empty };
             page.Controls.Add(grid);
             _tabs.TabPages.Add(page);
-            _bands[band] = (page, spectrum, load);
+            _bands[band] = (page, spectrum, load, util);
         }
         _tabs.SelectedIndex = Array.IndexOf(WifiChannels.AllBands, _startBand);
 
@@ -352,8 +358,10 @@ internal sealed class MainForm : Form
             view.Spectrum.SelectedBssid = _selectedBssid;
             view.Load.Loads = loads;
             view.Load.Recommendation = count > 0 ? recommendation : null;
+            view.Util.Loads = loads;
             view.Spectrum.Invalidate();
             view.Load.Invalidate();
+            view.Util.Invalidate();
         }
         RefreshList();
         RefreshHistory();

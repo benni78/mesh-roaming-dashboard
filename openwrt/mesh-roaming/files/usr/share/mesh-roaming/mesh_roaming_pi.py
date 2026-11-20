@@ -53,7 +53,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "2.1"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
+__version__ = "2.2"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -672,7 +672,9 @@ def convert_router_output(lines):
 #   all     - zusaetzlich auf AP-Interfaces ("ap-force"); die Funkkarte
 #             verlaesst dafuer kurz ihren Kanal (kurze Pause fuer die Clients)
 # Ausserdem meldet jeder Router die BSSID/SSID seiner eigenen AP-Interfaces
-# ("OWNAP"), damit eigene und fremde Netze automatisch unterschieden werden.
+# ("OWNAP") und die SSID, mit der seine Client-Interfaces verbunden sind
+# ("OWNSSID", z. B. das Firmennetz eines Messpunkts, #15), damit eigene und
+# fremde Netze automatisch unterschieden werden.
 # Ausgegeben werden nur die fuer die Auswertung noetigen Zeilen.
 SCAN_GREP = ("^BSS |freq:|signal:|last seen:|SSID:|DS Parameter set|operation:|"
              "primary channel|secondary channel offset|channel width|"
@@ -700,7 +702,8 @@ def build_scan_cmd(trigger="clients"):
         "$1==\"addr\"{a=$2} "
         "$1==\"ssid\"{s=substr($0, index($0, \"ssid \")+5)} "
         "$1==\"Interface\"{a=\"\"; s=\"\"} "
-        "$1==\"type\" && $2==\"AP\"{print \"OWNAP \" a \" \" s}'"
+        "$1==\"type\" && $2==\"AP\"{print \"OWNAP \" a \" \" s} "
+        "$1==\"type\" && $2==\"managed\" && s!=\"\"{print \"OWNSSID \" s}'"
     )
     return "; ".join([
         "echo ===SCAN-OWN===",
@@ -735,6 +738,13 @@ def parse_scan_output(lines):
     block = None   # aktueller Operation-Block ("HT", "VHT", "HE", ...)
     for raw in lines:
         s = raw.strip()
+        if s.startswith("OWNSSID "):
+            # verbundenes Netz eines Client-Interfaces: SSID als eigen (der
+            # Schluessel ist keine echte BSSID und passt nie auf ein Netz)
+            name = s[8:]
+            if name:
+                own["ssid:" + name] = name
+            continue
         if s.startswith("OWNAP "):
             parts = s.split(" ", 2)
             if len(parts) >= 2 and len(parts[1]) == 17:
@@ -896,6 +906,11 @@ def analyze_scan(nets, is_own):
             "channels": rows,
             "recommendation": scan_recommendation(band, rows),
             "network_count": len(band_nets),
+            "own_network_count": sum(1 for n in band_nets if is_own(n)),
+            # Kanaele mit echter Messung (BSS Load eines AP) - nur diese
+            # werden in % angezeigt; die Schaetzung dient nur der Empfehlung (#15)
+            "measured_channels": sum(1 for r in rows if r["measured_pct"] is not None),
+            "max_channel_networks": max((r["own_count"] + r["foreign_count"] for r in rows), default=0),
             "networks": spectrum,
         }
     return out
@@ -1703,17 +1718,24 @@ def util_mqtt_values(util):
     return out
 
 
-# WLAN-Scan je Band (#13), bewusst nur zwei Topics je Band (jedes Topic
+# WLAN-Scan je Band (#13/#15), bewusst nur drei Topics je Band (jedes Topic
 # kostet einen mosquitto_pub-Aufruf auf dem Router):
 #   <base>/scan/<band>/recommendation   Empfehlung, z. B. "Kanal 6"
-#   <base>/scan/<band>/channels         JSON {"1": 12.5, "2": 30.1, ...},
-#                                       Gesamtbelegung je Kanal in %
+#   <base>/scan/<band>/networks         JSON {"1": [eigene, fremde], ...}:
+#                                       Anzahl Netze auf/ueber dem Kanal
+#   <base>/scan/<band>/utilization      JSON {"11": 42.0, ...}: gemessene
+#                                       Auslastung in % (BSS Load), NUR
+#                                       Kanaele mit Messung
 def scan_mqtt_values(scan):
     out = []
     for band, data in sorted(((scan or {}).get("bands") or {}).items()):
         out.append(("scan/%s/recommendation" % band, data["recommendation"]["text"]))
-        out.append(("scan/%s/channels" % band, json.dumps(
-            {str(r["channel"]): r["total_pct"] for r in data["channels"]}, separators=(",", ":"))))
+        out.append(("scan/%s/networks" % band, json.dumps(
+            {str(r["channel"]): [r["own_count"], r["foreign_count"]] for r in data["channels"]},
+            separators=(",", ":"))))
+        out.append(("scan/%s/utilization" % band, json.dumps(
+            {str(r["channel"]): r["measured_pct"] for r in data["channels"] if r["measured_pct"] is not None},
+            separators=(",", ":"))))
     return out
 
 

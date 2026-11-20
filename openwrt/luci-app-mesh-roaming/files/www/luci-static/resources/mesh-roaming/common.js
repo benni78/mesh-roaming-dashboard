@@ -9,7 +9,7 @@
 // die Seite aus dem Browser-Cache stammt oder der Dienst nach einem Upgrade
 // noch mit der alten Version laeuft.
 
-var FILE_VERSION = '2.1'; // MESH_ROAMING_VERSION
+var FILE_VERSION = '2.2'; // MESH_ROAMING_VERSION
 // Vollstaendige Paketversion (z. B. "1.4-r1"), beim Bauen des Pakets von
 // build-ipk.sh eingesetzt. Weicht sie von der installierten ab, stammt
 // diese Datei (und damit die ganze Seite) aus dem Browser-Cache.

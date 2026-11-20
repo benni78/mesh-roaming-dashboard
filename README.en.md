@@ -275,23 +275,25 @@ radio). The results of all routers are merged; networks no router has seen
 for `scan.max_age_sec` are dropped. The live page shows two bar charts,
 2.4 and 5 GHz, without history:
 
-- **Height** = how busy the 20 MHz channel is. **Measured** (solid bar): the
-  highest value an access point on this channel reports in its beacons
-  (*BSS Load*, caused by all networks). **Estimated** (hatched): without that
-  value, an occupancy index from number and signal strength of the networks
-  overlapping the channel (up to 20 points per network, −95 dBm = 5 % to
-  −50 dBm = 100 %) – a rough indicator, not a measurement.
-- **Blue/red** = share of own/foreign networks (by connected devices if all
-  networks involved report them, otherwise by signal-weighted network
-  count). The SSIDs and BSSIDs of your own access points count as own
-  automatically, plus `scan.own_ssids`.
-- **Number above the bar** = number of networks; tooltip with the strongest
-  networks; bold channel number = channel with own networks; DFS range
-  shaded on 5 GHz.
+- **Number of networks per channel** (since 2.2): how many networks occupy
+  the 20 MHz channel fully or partly, blue = own, red = foreign, scaled to
+  the largest number found (same scale for both bands). Says nothing about
+  utilization. Tooltip with the strongest networks; bold channel number =
+  channel with own networks; DFS range shaded on 5 GHz.
+- **Measured utilization per channel** (since 2.2): only if an access point
+  reports it in its beacons (*BSS Load*, caused by all networks; the highest
+  value counts). If no AP in a band reports it, a note is shown instead – a
+  utilization in % cannot be measured then. (Up to 2.1 an estimated value in
+  % was shown here.)
+- **Own networks** are the SSIDs/BSSIDs of the configured access points and
+  the network a measuring point (client interface) is connected to, plus
+  `scan.own_ssids`. If no own network is detected in a band, the page says
+  so.
 - **Recommendation**: channel with the least use by foreign networks
-  (2.4 GHz: 1, 6 or 11; 5 GHz: 80 MHz block, non-DFS preferred).
+  (reported utilization, or internally estimated from number and signal
+  strength; 2.4 GHz: 1, 6 or 11; 5 GHz: 80 MHz block, non-DFS preferred).
 
-Above each bar chart there is a **spectrum** (since 2.1): every network as
+Above the bar charts there is a **spectrum** (since 2.1): every network as
 an area over its occupied bandwidth (20/40/80/160 MHz), height = signal
 strength, with the **network name** above it. Own networks (★) bold in cool
 colours, foreign ones faint in warm colours; the colour is tied to the
@@ -336,7 +338,8 @@ With `mqtt.broker` set, the service publishes every
 | `<base>/<router>/util/<band>/own_sta` | own traffic measured via the connected devices, % |
 | `<base>/<router>/util/<band>/rx_own`, `…/rx_other` | received from own devices / other networks, % (drivers without BSS receive time) |
 | `<base>/scan/<band>/recommendation` | WiFi scan: channel recommendation, e.g. `Kanal 6` |
-| `<base>/scan/<band>/channels` | WiFi scan: occupancy per channel as JSON, e.g. `{"1":12.5,"6":30.1,…}` |
+| `<base>/scan/<band>/networks` | WiFi scan: number of networks per channel as JSON `{"channel": [own, foreign]}`, e.g. `{"1":[1,3],…}` |
+| `<base>/scan/<band>/utilization` | WiFi scan: measured utilization in % (BSS Load), only channels with a report, e.g. `{"11":42.0}` |
 
 `<band>` is `2g`, `5g` or `6g`. If a router has two radios in the same
 band, the radio name (`phy0`, `phy1`, …) is used instead. Values the driver
@@ -385,24 +388,24 @@ the current version (architecture `all`, run on any target):
 
 | File | for |
 |---|---|
-| `mesh-roaming_2.1-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_2.1-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_2.1-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_2.1-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
+| `mesh-roaming_2.2-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_2.2-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_2.2-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_2.2-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
 
 ```sh
 # on the PC: copy the packages to the router (-O: Dropbear has no SFTP)
-scp -O packages/*_2.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_2.2-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # on the router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: packages intact?
 apk update
-apk add --allow-untrusted ./mesh-roaming_2.1-r1_all.apk ./luci-app-mesh-roaming_2.1-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_2.2-r1_all.apk ./luci-app-mesh-roaming_2.2-r1_all.apk
 
 # or on the router (opkg, up to OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_2.1-r1_all.ipk ./luci-app-mesh-roaming_2.1-r1_all.ipk
+opkg install ./mesh-roaming_2.2-r1_all.ipk ./luci-app-mesh-roaming_2.2-r1_all.ipk
 ```
 
 The package manager fetches the dependencies (`python3`, `python3-sqlite3`,
@@ -506,10 +509,10 @@ own [third-party notices](tools/WlanAnalyzer/THIRD-PARTY-NOTICES.md).
 
 | Program | Version | Shown in |
 |---|---|---|
-| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 2.1 | `--version`, live page header, LuCI page title, `/config.json` |
-| Raspberry Pi variant (`src/`, `systemd/`) | 2.1 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
-| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 2.1-r1 | `apk info -v` or `opkg list-installed` |
-| WLAN Analyzer | 1.1.1 | title bar, *Info*, `--version`, EXE file properties |
+| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 2.2 | `--version`, live page header, LuCI page title, `/config.json` |
+| Raspberry Pi variant (`src/`, `systemd/`) | 2.2 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
+| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 2.2-r1 | `apk info -v` or `opkg list-installed` |
+| WLAN Analyzer | 1.2.0 | title bar, *Info*, `--version`, EXE file properties |
 
 Changes per version: [`CHANGELOG.md`](CHANGELOG.md). All version strings of
 the dashboard carry the marker `MESH_ROAMING_VERSION`; `openwrt/build-ipk.sh`

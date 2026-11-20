@@ -5,9 +5,11 @@ using WlanAnalyzer.Wlan;
 namespace WlanAnalyzer.UI;
 
 /// <summary>
-/// Verlauf der Kanalauslastung eines Bandes:
-///   oben   Heatmap Kanal x Zeit (Farbe = Gesamtauslastung, schraffiert = geschaetzt),
-///   unten  fuer den gewaehlten Kanal die Aufteilung eigen/fremd ueber die Zeit.
+/// Verlauf eines Bandes:
+///   oben   Heatmap Kanal x Zeit, Farbe = von Access Points GEMELDETE Auslastung
+///          (BSS Load). Ohne Meldung bleibt die Zelle leer - eine geschaetzte
+///          Auslastung wird bewusst nicht in % gezeigt.
+///   unten  fuer den gewaehlten Kanal die Anzahl eigener/fremder Netze ueber die Zeit.
 /// Ein Klick auf eine Zeile der Heatmap waehlt den Kanal.
 /// </summary>
 internal sealed class LoadHistoryChart : ChartBase
@@ -57,7 +59,7 @@ internal sealed class LoadHistoryChart : ChartBase
         _rows = new List<int>();
         var window = NetworkTracker.LoadHistoryWindow;
         DrawTitle(g, $"Auslastungsverlauf {WifiChannels.Name(Band)}",
-            $"letzte {window.TotalMinutes:0} min · Klick auf einen Kanal zeigt eigen/fremd");
+            $"letzte {window.TotalMinutes:0} min · oben gemeldete Auslastung, unten Anzahl der Netze · Klick waehlt den Kanal");
         DrawLegend(g);
 
         string key = Band + "|" + OwnKey;
@@ -81,9 +83,9 @@ internal sealed class LoadHistoryChart : ChartBase
         }
 
         var channels = WifiChannels.Channels(Band);
-        // Zeilen: nur Kanaele, die im Zeitraum belegt waren (6 GHz hat sonst 59 Zeilen)
+        // Zeilen: nur Kanaele, auf denen im Zeitraum Netze waren (6 GHz hat sonst 59 Zeilen)
         var used = Enumerable.Range(0, channels.Count)
-            .Where(i => samples.Any(s => s.Loads[i].TotalPct > 0.5))
+            .Where(i => samples.Any(s => s.Loads[i].OwnCount + s.Loads[i].ForeignCount > 0))
             .Select(i => channels[i])
             .ToList();
         if (used.Count == 0)
@@ -140,7 +142,11 @@ internal sealed class LoadHistoryChart : ChartBase
         var own = inBand.Where(IsOwn).OrderByDescending(n => n.Rssi).FirstOrDefault();
         if (own is not null && channels.Contains(own.Channel))
             return own.Channel;
-        return _rows.OrderByDescending(ch => loads[IndexOf(channels, ch)].TotalPct).First();
+        return _rows.OrderByDescending(ch =>
+        {
+            var l = loads[IndexOf(channels, ch)];
+            return l.OwnCount + l.ForeignCount;
+        }).First();
     }
 
     private static int IndexOf(IReadOnlyList<int> channels, int ch)
@@ -156,19 +162,17 @@ internal sealed class LoadHistoryChart : ChartBase
         using (var bg = new SolidBrush(Theme.Raised))
             g.FillRectangle(bg, _heat);
 
-        var brushes = new Dictionary<(int Level, bool Estimated), Brush>();
+        var brushes = new Dictionary<int, Brush>();
+        bool anyMeasured = false;
         try
         {
-            Brush BrushFor(double pct, bool estimated)
+            Brush BrushFor(double pct)
             {
                 int level = (int)Math.Round(Math.Clamp(pct, 0, 100) / 5); // 21 Stufen
-                if (!brushes.TryGetValue((level, estimated), out var b))
+                if (!brushes.TryGetValue(level, out var b))
                 {
-                    var c = Ramp(level / 20.0);
-                    b = estimated
-                        ? new HatchBrush(HatchStyle.WideUpwardDiagonal, c, Color.FromArgb(255, c.R / 3, c.G / 3, c.B / 3))
-                        : new SolidBrush(c);
-                    brushes[(level, estimated)] = b;
+                    b = new SolidBrush(Ramp(level / 20.0));
+                    brushes[level] = b;
                 }
                 return b;
             }
@@ -180,10 +184,10 @@ internal sealed class LoadHistoryChart : ChartBase
                 foreach (var cell in _cells)
                 {
                     var load = cell.Loads[idx];
-                    if (load.TotalPct <= 0.5)
-                        continue;
-                    g.FillRectangle(BrushFor(load.TotalPct, !load.MeasuredPct.HasValue),
-                        cell.X0, y, cell.X1 - cell.X0, Math.Max(1, _rowHeight - 1));
+                    if (load.MeasuredPct is not double pct)
+                        continue; // keine Meldung -> keine Prozentangabe
+                    anyMeasured = true;
+                    g.FillRectangle(BrushFor(pct), cell.X0, y, cell.X1 - cell.X0, Math.Max(1, _rowHeight - 1));
                 }
             }
         }
@@ -191,6 +195,13 @@ internal sealed class LoadHistoryChart : ChartBase
         {
             foreach (var b in brushes.Values)
                 b.Dispose();
+        }
+        if (!anyMeasured)
+        {
+            using var note = new SolidBrush(Theme.TextDim);
+            using var centered = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+            g.DrawString("Kein Access Point meldet hier seine Auslastung (BSS Load) – in % nicht messbar",
+                Theme.Small, note, _heat, centered);
         }
 
         // Kanalbeschriftung links; ★ = eigenes Netz im letzten Scan auf/ueber dem Kanal
@@ -227,40 +238,41 @@ internal sealed class LoadHistoryChart : ChartBase
         var current = _cells.Count > 0 ? _cells[^1].Loads[idx] : null;
         using var textBrush = new SolidBrush(Theme.Text);
         using var dim = new SolidBrush(Theme.TextDim);
-        string head = $"Kanal {_detailChannel}" + (WifiChannels.IsDfs(Band, _detailChannel) ? " (DFS)" : "") + " – eigen/fremd";
+        string head = $"Kanal {_detailChannel}" + (WifiChannels.IsDfs(Band, _detailChannel) ? " (DFS)" : "") + " – Anzahl der Netze";
         g.DrawString(head, Theme.Bold, textBrush, _detail.Left - S(2), _detail.Top - S(20));
         if (current is not null)
         {
             float x = _detail.Left - S(2) + g.MeasureString(head, Theme.Bold).Width + S(4);
-            string now = $"jetzt {current.TotalPct:0} % {(current.MeasuredPct.HasValue ? "gemeldet" : "geschätzt")} · " +
-                         $"eigen {current.OwnPct:0} · fremd {current.ForeignPct:0}";
+            string now = $"jetzt {current.OwnCount} eigene · {current.ForeignCount} fremde" +
+                         (current.MeasuredPct is double pct ? $" · Auslastung {pct:0} % (gemeldet)" : "");
             g.DrawString(now, Theme.Small, dim, x, _detail.Top - S(18));
         }
 
         using var grid = new Pen(Theme.Grid);
         using var rightAlign = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center };
-        for (int p = 0; p <= 100; p += 50)
+        // Massstab: groesste Anzahl im Zeitraum (ganzzahlige Achse)
+        int maxCount = Math.Max(1, _cells.Max(c => c.Loads[idx].OwnCount + c.Loads[idx].ForeignCount));
+        int step = maxCount <= 5 ? 1 : maxCount <= 10 ? 2 : maxCount <= 25 ? 5 : 10;
+        int yMax = (int)Math.Ceiling(maxCount / (double)step) * step;
+        for (int v = 0; v <= yMax; v += step)
         {
-            float y = _detail.Bottom - p / 100f * _detail.Height;
+            float y = _detail.Bottom - v / (float)yMax * _detail.Height;
             g.DrawLine(grid, _detail.Left, y, _detail.Right, y);
-            g.DrawString(p + " %", Theme.Small, dim, new RectangleF(0, y - S(8), _detail.Left - S(4), S(16)), rightAlign);
+            g.DrawString(v.ToString(), Theme.Small, dim, new RectangleF(0, y - S(8), _detail.Left - S(4), S(16)), rightAlign);
         }
 
         using var ownSolid = new SolidBrush(Color.FromArgb(210, Theme.Own));
         using var foreignSolid = new SolidBrush(Color.FromArgb(210, Theme.Foreign));
-        using var ownHatch = new HatchBrush(HatchStyle.WideUpwardDiagonal, Theme.Own, Color.FromArgb(40, Theme.Own));
-        using var foreignHatch = new HatchBrush(HatchStyle.WideUpwardDiagonal, Theme.Foreign, Color.FromArgb(40, Theme.Foreign));
         foreach (var cell in _cells)
         {
             var load = cell.Loads[idx];
-            bool measured = load.MeasuredPct.HasValue;
             float w = cell.X1 - cell.X0;
-            float ownH = (float)(Math.Min(100, load.OwnPct) / 100 * _detail.Height);
-            float foreignH = (float)(Math.Min(100 - Math.Min(100, load.OwnPct), load.ForeignPct) / 100 * _detail.Height);
+            float ownH = load.OwnCount / (float)yMax * _detail.Height;
+            float foreignH = load.ForeignCount / (float)yMax * _detail.Height;
             if (ownH > 0)
-                g.FillRectangle(measured ? ownSolid : ownHatch, cell.X0, _detail.Bottom - ownH, w, ownH);
+                g.FillRectangle(ownSolid, cell.X0, _detail.Bottom - ownH, w, ownH);
             if (foreignH > 0)
-                g.FillRectangle(measured ? foreignSolid : foreignHatch, cell.X0, _detail.Bottom - ownH - foreignH, w, foreignH);
+                g.FillRectangle(foreignSolid, cell.X0, _detail.Bottom - ownH - foreignH, w, foreignH);
         }
     }
 
@@ -294,15 +306,13 @@ internal sealed class LoadHistoryChart : ChartBase
             g.FillRectangle(gradient, bar);
         }
         x = bar.Right + S(3);
-        g.DrawString("100 % Auslastung", Theme.Small, dim, x, y);
-        x += g.MeasureString("100 % Auslastung", Theme.Small).Width + S(10);
+        g.DrawString("100 % gemeldete Auslastung", Theme.Small, dim, x, y);
+        x += g.MeasureString("100 % gemeldete Auslastung", Theme.Small).Width + S(10);
 
-        using var hatch = new HatchBrush(HatchStyle.WideUpwardDiagonal, Theme.TextDim, Theme.Background);
         using var own = new SolidBrush(Theme.Own);
         using var foreign = new SolidBrush(Theme.Foreign);
-        DrawLegendItem(g, ref x, y, hatch, "geschätzt", Theme.Small);
-        DrawLegendItem(g, ref x, y, own, "eigen", Theme.Small);
-        DrawLegendItem(g, ref x, y, foreign, "fremd", Theme.Small);
+        DrawLegendItem(g, ref x, y, own, "eigene Netze", Theme.Small);
+        DrawLegendItem(g, ref x, y, foreign, "fremde Netze (Anzahl)", Theme.Small);
     }
 
     private static Color Ramp(double t)
@@ -346,11 +356,11 @@ internal sealed class LoadHistoryChart : ChartBase
         {
             var channels = WifiChannels.Channels(Band);
             var load = h.Cell.Loads[IndexOf(channels, h.Channel)];
-            string source = load.MeasuredPct.HasValue
-                ? $"Auslastung: {load.TotalPct:0} % (vom AP gemeldet, BSS Load)"
-                : $"Belegungsindex: {load.TotalPct:0} % (geschätzt)";
+            string source = load.MeasuredPct is double pct
+                ? $"Auslastung: {pct:0} % (vom AP gemeldet, BSS Load)"
+                : "Auslastung: keine Meldung (kein AP sendet BSS Load)";
             tip = $"Kanal {h.Channel} · {h.Cell.Time:HH:mm:ss}\n{source}\n" +
-                  $"eigene Netze: {load.OwnPct:0} % ({load.OwnCount}), fremde: {load.ForeignPct:0} % ({load.ForeignCount})";
+                  $"Netze: {load.OwnCount} eigene, {load.ForeignCount} fremde";
         }
         if (tip == _lastTip)
             return;

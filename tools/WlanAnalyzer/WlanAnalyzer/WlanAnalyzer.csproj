@@ -12,7 +12,7 @@
     <RootNamespace>WlanAnalyzer</RootNamespace>
 
     <!-- Versionsnummer: hier pflegen (Titelleiste, Info-Dialog, Dateieigenschaften der EXE) -->
-    <Version>1.1.1</Version>
+    <Version>1.2.0</Version>
     <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
     <Product>WLAN-Analyzer</Product>
     <Description>Kanalnutzung und Auslastung der WLAN-Netze in Reichweite des PC-eigenen WLAN-Adapters</Description>

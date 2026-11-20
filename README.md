@@ -286,23 +286,25 @@ Interface). Die Ergebnisse aller Router werden zusammengeführt; Netze, die
 `scan.max_age_sec` lang keiner mehr gesehen hat, fallen heraus. Die
 Live-Seite zeigt daraus zwei Balkendiagramme, 2,4 und 5 GHz, ohne Verlauf:
 
-- **Höhe** = Belegung des 20-MHz-Kanals. **Gemessen** (voller Balken): der
-  höchste Wert, den ein Access Point auf diesem Kanal in seinen Beacons
-  meldet (*BSS Load*, durch alle Netze). **Geschätzt** (schraffiert): ohne
-  diese Angabe ein Belegungsindex aus Anzahl und Signalstärke der Netze, die
-  den Kanal überlappen (je Netz bis 20 Prozentpunkte, −95 dBm = 5 % bis
-  −50 dBm = 100 %) – ein Anhaltspunkt, keine Messung.
-- **Blau/rot** = Anteil eigener/fremder Netze (im Verhältnis der
-  angemeldeten Geräte, sofern alle beteiligten Netze sie melden, sonst der
-  signalgewichteten Netzanzahl). Eigen sind automatisch die SSIDs und BSSIDs
-  der eigenen Access Points, dazu `scan.own_ssids`.
-- **Zahl über dem Balken** = Anzahl der Netze; Tooltip mit den stärksten
-  Netzen; fette Kanalnummer = Kanal mit eigenen Netzen; 5 GHz mit
-  hinterlegtem DFS-Bereich.
+- **Anzahl der Netze je Kanal** (ab 2.2): wie viele Netze den 20-MHz-Kanal
+  ganz oder teilweise belegen, blau = eigene, rot = fremde, maßstäblich zur
+  größten gefundenen Anzahl (beide Bänder gleich). Keine Aussage über die
+  Auslastung. Tooltip mit den stärksten Netzen; fette Kanalnummer = Kanal
+  mit eigenen Netzen; 5 GHz mit hinterlegtem DFS-Bereich.
+- **Gemessene Auslastung je Kanal** (ab 2.2): nur, wenn ein Access Point sie
+  in seinen Beacons meldet (*BSS Load*, durch alle Netze; es gilt der höchste
+  Wert). Meldet in einem Band kein AP, steht dort ein Hinweis – eine
+  Auslastung in % lässt sich dann nicht messen. (Bis 2.1 erschien hier ein
+  geschätzter Wert in %.)
+- **Eigene Netze** sind automatisch die SSIDs/BSSIDs der eingetragenen
+  Access Points und das Netz, mit dem ein Messpunkt (Client-Interface)
+  verbunden ist, dazu `scan.own_ssids`. Wird in einem Band kein eigenes Netz
+  erkannt, weist die Seite darauf hin.
 - **Empfehlung**: Kanal mit der geringsten Belegung durch fremde Netze
-  (2,4 GHz: 1, 6 oder 11; 5 GHz: 80-MHz-Block, ohne DFS bevorzugt).
+  (gemeldete Auslastung bzw. intern geschätzt aus Anzahl und Signalstärke;
+  2,4 GHz: 1, 6 oder 11; 5 GHz: 80-MHz-Block, ohne DFS bevorzugt).
 
-Über jedem Balkendiagramm steht ein **Spektrum** (ab 2.1): jedes Netz als
+Über den Balkendiagrammen steht ein **Spektrum** (ab 2.1): jedes Netz als
 Fläche über seiner belegten Bandbreite (20/40/80/160 MHz), Höhe =
 Signalstärke, mit dem **Netznamen** darüber. Eigene Netze (★) kräftig in
 kühlen Farben, fremde blass in warmen; die Farbe hängt fest an der SSID.
@@ -348,7 +350,8 @@ Mit gesetztem `mqtt.broker` sendet der Dienst alle
 | `<base>/<router>/util/<band>/own_sta` | eigener Verkehr, über die verbundenen Geräte gemessen, % |
 | `<base>/<router>/util/<band>/rx_own`, `…/rx_other` | Empfang eigener Geräte / übriger WLANs, % (Treiber ohne BSS-Empfangszeit) |
 | `<base>/scan/<band>/recommendation` | WLAN-Scan: Kanalempfehlung, z. B. `Kanal 6` |
-| `<base>/scan/<band>/channels` | WLAN-Scan: Belegung je Kanal als JSON, z. B. `{"1":12.5,"6":30.1,…}` |
+| `<base>/scan/<band>/networks` | WLAN-Scan: Anzahl Netze je Kanal als JSON `{"Kanal": [eigene, fremde]}`, z. B. `{"1":[1,3],…}` |
+| `<base>/scan/<band>/utilization` | WLAN-Scan: gemessene Auslastung in % (BSS Load), nur Kanäle mit Meldung, z. B. `{"11":42.0}` |
 
 `<band>` ist `2g`, `5g` oder `6g`. Hat ein Router zwei Funkkarten im
 selben Band, steht dort stattdessen der Name der Funkkarte (`phy0`,
@@ -397,24 +400,24 @@ aktuellen Version (Architektur `all`, laufen auf jedem Target):
 
 | Datei | für |
 |---|---|
-| `mesh-roaming_2.1-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_2.1-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_2.1-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_2.1-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+| `mesh-roaming_2.2-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_2.2-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_2.2-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_2.2-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
 
 ```sh
 # auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
-scp -O packages/*_2.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_2.2-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # auf dem Router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
 apk update
-apk add --allow-untrusted ./mesh-roaming_2.1-r1_all.apk ./luci-app-mesh-roaming_2.1-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_2.2-r1_all.apk ./luci-app-mesh-roaming_2.2-r1_all.apk
 
 # bzw. auf dem Router (opkg, bis OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_2.1-r1_all.ipk ./luci-app-mesh-roaming_2.1-r1_all.ipk
+opkg install ./mesh-roaming_2.2-r1_all.ipk ./luci-app-mesh-roaming_2.2-r1_all.ipk
 ```
 
 Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
@@ -520,10 +523,10 @@ PolyForm Noncommercial) und eigenen
 
 | Programm | Version | Anzeige |
 |---|---|---|
-| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 2.1 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
-| Raspberry-Pi-Variante (`src/`, `systemd/`) | 2.1 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
-| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 2.1-r1 | `apk info -v` bzw. `opkg list-installed` |
-| WLAN-Analyzer | 1.1.1 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
+| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 2.2 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
+| Raspberry-Pi-Variante (`src/`, `systemd/`) | 2.2 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
+| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 2.2-r1 | `apk info -v` bzw. `opkg list-installed` |
+| WLAN-Analyzer | 1.2.0 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
 
 Änderungen je Version: [`CHANGELOG.md`](CHANGELOG.md). Alle Versionsangaben
 des Dashboards tragen die Markierung `MESH_ROAMING_VERSION`;
