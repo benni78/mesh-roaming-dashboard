@@ -30,6 +30,14 @@
   Geräte (gemessen)“ und „übrige WLANs“. MAC-Adressen dienen nur intern
   der Differenzbildung und werden weder gespeichert noch angezeigt. Neue
   MQTT-Werte `…/own_sta`, `…/rx_own`, `…/rx_other`.
+- **Rauschen und Signal für Laien bewertet** (Issue #12): Neben dem
+  Rauschwert steht „gut“ (bis −90 dBm), „mittel“ (−89 bis −80 dBm) oder
+  „schlecht“, mit Erklärung im Tooltip. Bei Client-Interfaces zusätzlich
+  Signal des verbundenen AP und Signal-Rausch-Abstand mit Einstufung
+  (sehr gut / gut / ausreichend / schlecht). Neue MQTT-Werte `…/signal`,
+  `…/snr`.
+- Raspberry-Pi-Variante: gleiche Live-Seite und gleicher Dienst, keine
+  weiteren Änderungen.
 
 ### 1.3 (Pakete 1.3-r2)
 

@@ -249,6 +249,14 @@ einem Client-Interface auch das WLAN, mit dem es verbunden ist. Unter jedem
 Band steht der WLAN-Treiber und ob er eigenen und fremden Verkehr trennen
 kann („eigen/fremd getrennt gemessen“ bzw. „nicht unterscheidbar“).
 
+**Rauschen und Signal bewerten:** Neben dem Rauschen steht eine Einstufung
+(bis −90 dBm **gut**, −89 bis −80 dBm **mittel**, darüber **schlecht**; je
+negativer, desto besser). Bei einem Client-Interface (Messpunkt) kommen das
+Signal des verbundenen AP und der Signal-Rausch-Abstand (SNR = Signal −
+Rauschen) dazu: ab 40 dB sehr gut, 25–39 dB gut, 15–24 dB ausreichend,
+darunter schlecht. Die Schwellen sind gängige Richtwerte; die Erklärung
+steht im Tooltip.
+
 **Eigener Verkehr über die verbundenen Geräte:** Zusätzlich summiert der
 Dienst die Sende- und Empfangszeit aller verbundenen Geräte (beim AP die
 Clients, beim Messpunkt die Verbindung zum AP) aus `iw dev <if> station
@@ -281,6 +289,7 @@ Mit gesetztem `mqtt.broker` sendet der Dienst alle
 | `<base>/<router>/util/<band>/rx`, `…/tx`, `…/other` | Empfang / Senden / Störung, % (Treiber ohne BSS-Empfangszeit) |
 | `<base>/<router>/util/<band>/free` | frei, % |
 | `<base>/<router>/util/<band>/noise` | Rauschen, dBm |
+| `<base>/<router>/util/<band>/signal`, `…/snr` | Client-Interface: Signal des AP (dBm), Signal-Rausch-Abstand (dB) |
 | `<base>/<router>/util/<band>/channel` | aktueller Kanal |
 | `<base>/<router>/util/<band>/mode` | `own_foreign` (Chip trennt eigen/fremd) oder `rx_tx` (Chip kann das nicht) |
 | `<base>/<router>/util/<band>/driver` | WLAN-Treiber, z. B. `ath9k`, `mt7915e` |

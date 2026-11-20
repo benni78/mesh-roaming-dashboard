@@ -952,6 +952,12 @@ class MeshState:
                 if computed is not None:
                     for key in ("band", "channel", "ifname", "iftype", "ssid", "noise_dbm", "driver"):
                         computed[key] = sample.get(key)
+                    # Client-Interface (Messpunkt): Signal des verbundenen AP
+                    # und Signal-Rausch-Abstand (#12)
+                    signal = self._client_signal(sample)
+                    computed["signal_dbm"] = signal
+                    noise = sample.get("noise_dbm")
+                    computed["snr_db"] = (signal - noise) if signal is not None and noise is not None else None
                 router_latest[phy] = computed
 
     @staticmethod
@@ -1083,6 +1089,16 @@ class MeshState:
         })
         MeshState._add_station_fields(base, sta, active_delta)
         return base
+
+    @staticmethod
+    def _client_signal(sample):
+        """Signal (dBm) des AP, mit dem ein Client-Interface verbunden ist
+        (aus "iw station dump" desselben Interfaces), sonst None."""
+        if sample.get("iftype") != "managed":
+            return None
+        values = [s.get("signal_dbm") for s in (sample.get("stations") or {}).values()
+                  if s.get("ifname") == sample.get("ifname") and s.get("signal_dbm") is not None]
+        return max(values) if values else None
 
     @staticmethod
     def _station_airtime(ref, newest):
@@ -1296,6 +1312,8 @@ def mqtt_base_cmd():
 #   .../own, .../foreign, .../free        Treiber mit BSS-Empfangszeit (mt76)
 #   .../rx, .../tx, .../other, .../free   Treiber ohne (ath9k), s. _compute_util
 #   .../noise                             Rauschen, dBm
+#   .../signal, .../snr                   Client-Interface: Signal des AP (dBm)
+#                                         und Signal-Rausch-Abstand (dB), #12
 #   .../channel                           aktueller Kanal
 #   .../mode                              own_foreign (Chip trennt eigen/fremd)
 #                                         oder rx_tx (Chip kann das nicht), #10
@@ -1324,7 +1342,8 @@ def util_mqtt_values(util):
             band = v.get("band")
             key = band if band and bands.count(band) == 1 else phy
             prefix = "%s/util/%s" % (rid, key)
-            fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("channel", "channel"),
+            fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("signal", "signal_dbm"),
+                      ("snr", "snr_db"), ("channel", "channel"),
                       ("mode", "mode"), ("driver", "driver"), ("own_sta", "sta_pct"),
                       ("rx_own", "rx_own_pct"), ("rx_other", "rx_other_pct")]
             fields += list(_UTIL_MQTT_FIELDS.get(v.get("mode"), ()))

@@ -154,9 +154,11 @@ der Neustart fehlt. Änderungen je Version: [`CHANGELOG.md`](../CHANGELOG.md).
   konsistent für alle Betrachter, überlebt einen Dienst-Neustart.
 - Kanalauslastung je Router und Funkkarte, neu berechnet als gleitende
   10-Sekunden-Differenz aus `iw dev <ifname> survey dump`. Treiber mit
-  `channel BSS receive time` (z. B. mt76) zeigen eigene/fremde Nutzung,
-  ältere wie ath9k Senden/Empfang/Störung/frei. Funktioniert auch mit
-  Client-Interfaces (Messpunkte).
+  `channel BSS receive time` (z. B. mt76) zeigen eigenes/fremdes Netz,
+  ältere wie ath9k Senden/Empfang/Störung/frei; je Band steht, was der
+  Treiber kann. Dazu der eigene Verkehr über die verbundenen Geräte,
+  Rauschen (und bei Messpunkten Signal/SNR) mit Bewertung gut/mittel/
+  schlecht. Funktioniert auch mit Client-Interfaces (Messpunkte).
 - Mit MQTT zusätzlich die Auslastungswerte je Router und Band, z. B. für
   openHAB → InfluxDB → Grafana (Topics: README, Abschnitt „MQTT-Topics“).
 - Client-Punkte: voller Punkt = 5 GHz, Ring = 2,4 GHz.

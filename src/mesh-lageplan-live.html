@@ -202,6 +202,11 @@
   .util-band-cap.limited{color:var(--chanutil-other);}
   .util-band-cap.partial{color:var(--text-secondary);}
   .util-band-sta{font-size:10px;color:var(--text-secondary);margin:0 0 3px;cursor:help;}
+  .rating{cursor:help;white-space:nowrap;}
+  .rating-badge{font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:0.3px;padding:0 4px;border-radius:3px;}
+  .rating-badge.good{color:#06200f;background:var(--chanutil-tx);}
+  .rating-badge.fair{color:#2e1d03;background:var(--chanutil-other);}
+  .rating-badge.bad{color:#300606;background:var(--chanutil-foreign);}
   .util-notes{font-size:10.5px;line-height:1.45;color:var(--text-muted);margin-top:8px;}
   .util-router-badge{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--sensor);margin-left:6px;}
   .host-title.sensor{fill:var(--sensor);}
@@ -972,6 +977,29 @@
   };
   var utilModesSeen = {};
 
+  // Verstaendliche Einstufung fuer Laien (#12). Schwellen sind gaengige
+  // Richtwerte; die Treiber kalibrieren unterschiedlich.
+  function noiseRating(dbm){
+    var t = 'Grundrauschen auf dem Kanal. Je niedriger (negativer), desto besser: '+
+            'bis -90 dBm gut, -89 bis -80 dBm mittel, darüber schlecht. Entscheidend für die '+
+            'Verbindung ist der Abstand zwischen Signal und Rauschen (SNR).';
+    if (dbm <= -90) return { text:'gut', cls:'good', title:t };
+    if (dbm <= -80) return { text:'mittel', cls:'fair', title:t };
+    return { text:'schlecht', cls:'bad', title:t+' Hier stört vermutlich ein anderes Gerät in der Nähe.' };
+  }
+  function snrRating(db){
+    var t = 'Signal-Rausch-Abstand (SNR) = Signal minus Rauschen. Je größer, desto besser: '+
+            'ab 40 dB sehr gut, 25–39 dB gut, 15–24 dB ausreichend, darunter schlecht.';
+    if (db >= 40) return { text:'sehr gut', cls:'good', title:t };
+    if (db >= 25) return { text:'gut', cls:'good', title:t };
+    if (db >= 15) return { text:'ausreichend', cls:'fair', title:t };
+    return { text:'schlecht', cls:'bad', title:t };
+  }
+  function ratingHtml(label, r){
+    return '<span class="rating" title="'+escapeHtml(r.title)+'">'+escapeHtml(label)+
+      ' <span class="rating-badge '+r.cls+'">'+escapeHtml(r.text)+'</span></span>';
+  }
+
   // Was der Chip dieser Funkkarte bei der Kanalauslastung kann (#10).
   function utilCapability(data){
     var drv = data.driver ? 'Treiber '+data.driver : 'Treiber unbekannt';
@@ -1022,7 +1050,9 @@
     if (data.iftype === 'managed') sub.push('Client'+(data.ssid ? ' von „'+escapeHtml(data.ssid)+'“' : ''));
     else if (data.iftype === 'mesh') sub.push('Mesh');
     if (typeof data.busy_pct === 'number') sub.push('belegt '+fmtPct(data.busy_pct));
-    if (typeof data.noise_dbm === 'number') sub.push('Rauschen '+data.noise_dbm+' dBm');
+    if (typeof data.noise_dbm === 'number') sub.push(ratingHtml('Rauschen '+data.noise_dbm+' dBm', noiseRating(data.noise_dbm)));
+    if (typeof data.signal_dbm === 'number') sub.push('Signal '+data.signal_dbm+' dBm');
+    if (typeof data.snr_db === 'number') sub.push(ratingHtml('SNR '+data.snr_db+' dB', snrRating(data.snr_db)));
     var segs = UTIL_SEGMENTS[mode].map(function(s){
       var pctV = data[s.key+'_pct'], msV = data[s.key+'_ms'];
       var text = s.label;

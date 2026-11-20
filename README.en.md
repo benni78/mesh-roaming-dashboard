@@ -238,6 +238,14 @@ interface also the network it is connected to. Below each band the WiFi
 driver is shown together with whether it can separate own and foreign
 traffic.
 
+**Rating noise and signal:** the noise value comes with a rating (up to
+−90 dBm **good**, −89 to −80 dBm **fair**, above that **poor**; the more
+negative, the better). For a client interface (measuring point) the signal
+of the connected AP and the signal-to-noise ratio (SNR = signal − noise)
+are added: 40 dB and more very good, 25–39 dB good, 15–24 dB sufficient,
+below that poor. The thresholds are common rules of thumb; the tooltip
+explains them. (The labels on the page are in German.)
+
 **Own traffic via the connected devices:** the service also sums up the
 transmit and receive time of all connected devices (clients of an AP, the
 link to the AP for a measuring point) from `iw dev <if> station dump`
@@ -270,6 +278,7 @@ With `mqtt.broker` set, the service publishes every
 | `<base>/<router>/util/<band>/rx`, `…/tx`, `…/other` | receive / transmit / interference, % (drivers without BSS receive time) |
 | `<base>/<router>/util/<band>/free` | free, % |
 | `<base>/<router>/util/<band>/noise` | noise, dBm |
+| `<base>/<router>/util/<band>/signal`, `…/snr` | client interface: signal of the AP (dBm), signal-to-noise ratio (dB) |
 | `<base>/<router>/util/<band>/channel` | current channel |
 | `<base>/<router>/util/<band>/mode` | `own_foreign` (chip separates own/foreign) or `rx_tx` (chip cannot) |
 | `<base>/<router>/util/<band>/driver` | WiFi driver, e.g. `ath9k`, `mt7915e` |
