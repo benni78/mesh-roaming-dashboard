@@ -2,7 +2,9 @@
 # opkg prerm: Dienst vor der Deinstallation stoppen und deaktivieren.
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
-/etc/init.d/mesh-roaming stop
+# stderr verwerfen: laeuft der Dienst nicht, meldet OpenWrt 23.05 sonst
+# "Command failed: ubus call service delete ... (Not found)".
+/etc/init.d/mesh-roaming stop 2>/dev/null
 /etc/init.d/mesh-roaming disable
 
 exit 0

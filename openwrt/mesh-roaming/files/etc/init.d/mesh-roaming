@@ -29,10 +29,26 @@ regenerate_config_from_uci() {
 	# Fehler, die vorhandene config.json bleibt einfach bestehen.
 }
 
+# true, wenn config.json gueltiges JSON ist, aber keinen Router enthaelt
+# (z. B. frisch installiert, noch nichts in LuCI eingetragen). Dann den
+# Dienst gar nicht erst starten - sonst beendet sich Python sofort und procd
+# startet es (respawn) alle 5 Sekunden neu, jedes Mal mit Fehler im Log.
+# Andere Konfigurationsfehler meldet weiterhin Python selbst.
+config_has_no_routers() {
+	[ -f "$CONFIG_JSON" ] || return 1
+	jsonfilter -i "$CONFIG_JSON" -e '@' >/dev/null 2>&1 || return 1
+	! jsonfilter -i "$CONFIG_JSON" -e '@.routers[0]' >/dev/null 2>&1
+}
+
 start_service() {
 	regenerate_config_from_uci
 
 	mkdir -p /etc/mesh-roaming
+
+	if config_has_no_routers; then
+		logger -t mesh-roaming "Keine Router konfiguriert ($CONFIG_JSON) - Dienst wird nicht gestartet. Router in LuCI (Dienste > Mesh Roaming Dashboard > Router) oder in der config.json eintragen."
+		return 0
+	fi
 
 	procd_open_instance
 	procd_set_param command "$PROG" "$SCRIPT"
@@ -49,6 +65,6 @@ service_triggers() {
 }
 
 reload_service() {
-	stop
+	stop 2>/dev/null
 	start
 }

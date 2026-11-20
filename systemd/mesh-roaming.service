@@ -10,6 +10,13 @@ Description=Mesh-Lageplan Live-Server (Roaming-Visualisierung)
 Documentation=file:///opt/mesh-roaming/mesh_roaming_pi.py
 After=network-online.target
 Wants=network-online.target
+# Hoechstens 5 Starts in 120 s: Bei einem Konfigurationsfehler (z. B. keine
+# Router in der config.json) beendet sich das Skript sofort - ohne Limit
+# wuerde systemd es wegen Restart=on-failure endlos alle 5 s neu starten
+# (das Standardlimit 5 in 10 s greift bei RestartSec=5 nie). Nach dem
+# Korrigieren: systemctl reset-failed mesh-roaming && systemctl restart mesh-roaming
+StartLimitIntervalSec=120
+StartLimitBurst=5
 
 [Service]
 Type=simple

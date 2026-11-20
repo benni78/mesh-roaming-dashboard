@@ -1,10 +1,14 @@
 #!/bin/sh
 # postinst (opkg/apk): Dienst aktivieren und (ausser im Image-Build, also wenn
-# IPKG_INSTROOT gesetzt ist) gleich (neu) starten - restart statt start,
-# damit nach einem Upgrade nicht der alte Code weiterlaeuft.
+# IPKG_INSTROOT gesetzt ist) gleich (neu) starten - erst stop, dann start
+# (wie restart), damit nach einem Upgrade nicht der alte Code weiterlaeuft.
+# stderr von stop verwerfen: Ist der Dienst (noch) nicht bei procd
+# registriert (Erstinstallation), meldet OpenWrt 23.05 sonst
+# "Command failed: ubus call service delete ... (Not found)".
 [ -n "$IPKG_INSTROOT" ] && exit 0
 
 /etc/init.d/mesh-roaming enable
-/etc/init.d/mesh-roaming restart
+/etc/init.d/mesh-roaming stop 2>/dev/null
+/etc/init.d/mesh-roaming start
 
 exit 0

@@ -2,6 +2,27 @@
 
 ## Mesh Roaming Dashboard
 
+### 1.2 (Pakete 1.2-r3)
+
+- OpenWrt 23.05 (opkg): Bei der Installation erscheint nicht mehr
+  `Command failed: ubus call service delete … (Not found)`. Die Meldung war
+  harmlos: `postinst`/`prerm` haben einen noch nicht registrierten Dienst
+  gestoppt.
+- Ohne eingetragene Router startet der Dienst nicht mehr. Bisher hat er
+  sich sofort beendet, procd hat ihn alle 5 Sekunden neu gestartet und
+  jedes Mal einen Fehler ins Log geschrieben. Jetzt steht einmal
+  „Keine Router konfiguriert“ im Log; nach dem Speichern in LuCI startet
+  der Dienst.
+- `.ipk`-Pakete auf OpenWrt 23.05.6 getestet (Erstinstallation, Upgrade
+  von 1.2-r2, Neuinstallation, Deinstallation, LuCI-Zugriffe über rpcd),
+  `.apk`-Pakete weiterhin auf 25.12.6.
+- Raspberry Pi: Die systemd-Unit begrenzt Neustarts auf 5 innerhalb von
+  2 Minuten. Bisher hat systemd den Dienst bei einem Konfigurationsfehler
+  endlos alle 5 Sekunden neu gestartet. Danach `systemctl reset-failed` und
+  `restart` (siehe Pi-Anleitung). Zum Übernehmen die Unit neu kopieren
+  (Abschnitt „Aktualisieren“).
+- Programmcode unverändert.
+
 ### 1.2 (Pakete 1.2-r2)
 
 - Copyright-Inhaber: Benjamin Johann.

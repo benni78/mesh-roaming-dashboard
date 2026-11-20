@@ -104,6 +104,16 @@ sudo systemctl enable --now mesh-roaming
 
 Log im laufenden Betrieb: `journalctl -u mesh-roaming -f`
 
+Bei einem Fehler in der `config.json` (z. B. keine Router eingetragen)
+beendet sich der Dienst sofort. systemd versucht es fünfmal innerhalb von
+2 Minuten und gibt dann auf (`systemctl status mesh-roaming` zeigt `failed`,
+die Ursache steht im Journal). Nach dem Korrigieren der Konfiguration:
+
+```sh
+sudo systemctl reset-failed mesh-roaming
+sudo systemctl restart mesh-roaming
+```
+
 ## 6. Aufrufen
 
 Von jedem Gerät im eigenen Netz im Browser öffnen:

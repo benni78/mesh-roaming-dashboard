@@ -43,10 +43,8 @@
 # src/ und systemd/ der Raspberry-Pi-Variante) zur Version in control/control
 # passen und die Kopien unter src/ identisch sind.
 #
-# Hinweis: Das erzeugte Archiv wurde nicht gegen ein echtes opkg auf einem
-# Router getestet (in dieser Umgebung steht kein OpenWrt zur Verfuegung) -
-# vor dem produktiven Einsatz einmal mit "opkg install ./paket.ipk" auf
-# einem Testgeraet pruefen.
+# Getestet mit opkg auf OpenWrt 23.05.6 (x86/64): Erstinstallation,
+# Upgrade, Neuinstallation und Deinstallation.
 
 set -eu
 

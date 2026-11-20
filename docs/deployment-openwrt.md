@@ -181,7 +181,10 @@ inconsistent` fehl, war die installierte `.apk`-Datei noch APK v2 statt
 v3 – Schritt 1b (v2→v3-Umwandlung) nachholen.
 
 `mesh-roaming` wird dabei automatisch aktiviert und gestartet (`postinst`
-ruft `/etc/init.d/mesh-roaming enable && start` auf).
+ruft `/etc/init.d/mesh-roaming enable`, `stop` und `start` auf). Solange
+noch kein Router eingetragen ist, startet der Dienst nicht und schreibt
+einmal „Keine Router konfiguriert“ ins Log; nach dem Speichern in LuCI
+(oder `/etc/init.d/mesh-roaming reload`) startet er.
 
 ## 3. Konfiguration
 
