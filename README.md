@@ -185,7 +185,7 @@ Mitarbeitende ein.
   Kommandozeile: `curl -H 'Content-Type: application/json' -d
   '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
 - **MQTT:** übertragen werden nur Summen (Clients je Router, Länge des
-  Ereignis-Logs), keine MAC-Adressen oder Namen. Zugangsdaten stehen nicht
+  Ereignis-Logs) und die Kanalauslastung, keine MAC-Adressen oder Namen. Zugangsdaten stehen nicht
   in der Prozessliste; TLS ist möglich und bei einem Broker außerhalb des
   Routers/Pis empfohlen.
 - **Keine Zugriffsprotokolle:** Der Webserver protokolliert keine Aufrufe
@@ -220,13 +220,60 @@ Zweifel vor dem Einsatz fachkundigen Rat einholen.
   für alle Betrachter, überlebt einen Dienst-Neustart.
 - Detail-Panel je Client: Verlauf, aktuelle Verbindung, an welchen weiteren
   Routern das Gerät ebenfalls empfangbar ist.
-- Kanalauslastung je Router/Funkband (eigene Nutzung / fremde Nutzung /
-  ungenutzte Kapazität), aus `iw dev <ifname> survey dump`.
+- Kanalauslastung je Router und Funkkarte, aus `iw dev <ifname> survey dump`
+  (siehe [Kanalauslastung](#kanalauslastung)).
+- **Messpunkte:** Ein Router, der nur als WLAN-Client im Netz hängt, kann
+  als „Messpunkt“ eingetragen werden und misst dann nur die Kanalauslastung
+  seiner Funkkarten.
 - Client-Punkte: voller Punkt = 5 GHz, Ring = 2,4 GHz.
 - Clients lassen sich im UI umbenennen (Nickname), bleibt dauerhaft
   gespeichert.
-- Optional: Zusammenfassungs-Metriken per MQTT (z. B. für InfluxDB/Grafana),
-  wahlweise mit Benutzername/Passwort und TLS.
+- Optional: Metriken per MQTT (z. B. für InfluxDB/Grafana), wahlweise mit
+  Benutzername/Passwort und TLS (siehe [MQTT-Topics](#mqtt-topics)).
+
+### Kanalauslastung
+
+Je Funkkarte (phy) nimmt der Dienst ein beliebiges Interface dieser Karte
+(AP, Client, Mesh oder Monitor) und liest `iw dev <ifname> survey dump`.
+Angezeigt wird die Differenz über die letzten `channel_util.interval_sec`
+Sekunden, nicht der Wert seit dem Start des Interfaces. Wie die Belegung
+aufgeteilt wird, hängt vom WLAN-Treiber ab:
+
+| Treiber liefert … | Beispiele | Aufteilung |
+|---|---|---|
+| `channel BSS receive time` | mt76 (MediaTek) | **eigene Nutzung** (eigenes BSS empfangen + senden) · **fremde Nutzung** (Nachbarnetze) · frei |
+| keine BSS-Empfangszeit | ath9k (z. B. AR9340, AR9580) | **Senden** · **Empfang** (eigenes Netz und Nachbarn zusammen) · **Störung** (belegt, aber kein lesbarer WLAN-Frame: andere Funktechnik, zu schwache oder kollidierte Frames) · frei |
+
+Zusätzlich stehen bei jedem Band Kanal, Gesamtbelegung und Rauschen; bei
+einem Client-Interface auch das WLAN, mit dem es verbunden ist.
+
+**Messpunkt einrichten:** Router wie jeden anderen eintragen (SSH-Schlüssel,
+IP, Kartenposition) und die Rolle auf „Messpunkt“ setzen (LuCI: Router →
+Bearbeiten → Rolle; JSON: `"role": "sensor"`). Gemessen wird jeweils der
+Kanal, auf dem das Client-Interface gerade arbeitet, also der Kanal des
+Access Points, mit dem es verbunden ist. Von Messpunkten fragt der Dienst
+keine Client-Listen, DHCP-Leases oder ARP-Tabellen ab.
+
+### MQTT-Topics
+
+Mit gesetztem `mqtt.broker` sendet der Dienst alle
+`mqtt.publish_interval_sec` Sekunden (Präfix `mqtt.base_topic`, Standard
+`mesh-roaming`):
+
+| Topic | Wert |
+|---|---|
+| `<base>/<router>/clients` | Anzahl verbundener Clients (nicht für Messpunkte) |
+| `<base>/roam_events_total` | Einträge im Ereignis-Log |
+| `<base>/<router>/util/<band>/busy` | Kanal belegt gesamt, % |
+| `<base>/<router>/util/<band>/own`, `…/foreign` | eigene / fremde Nutzung, % (Treiber mit BSS-Empfangszeit) |
+| `<base>/<router>/util/<band>/rx`, `…/tx`, `…/other` | Empfang / Senden / Störung, % (Treiber ohne BSS-Empfangszeit) |
+| `<base>/<router>/util/<band>/free` | frei, % |
+| `<base>/<router>/util/<band>/noise` | Rauschen, dBm |
+| `<base>/<router>/util/<band>/channel` | aktueller Kanal |
+
+`<band>` ist `2g`, `5g` oder `6g`. Hat ein Router zwei Funkkarten im
+selben Band, steht dort stattdessen der Name der Funkkarte (`phy0`,
+`phy1`, …). Werte, die der Treiber nicht liefert, werden nicht gesendet.
 - Automatische Speicherbegrenzung (DSGVO): geräte­bezogene Daten verfallen
   nach `privacy.retention_days` (Default 7 Tage), eine MAC-freie
   Langzeit-Statistik bleibt für Trend-Analysen erhalten, Sofort-Löschung
@@ -271,24 +318,24 @@ aktuellen Version (Architektur `all`, laufen auf jedem Target):
 
 | Datei | für |
 |---|---|
-| `mesh-roaming_1.2-r3_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.2-r3_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.2-r3_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.2-r3_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+| `mesh-roaming_1.3-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.3-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.3-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.3-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
 
 ```sh
 # auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
-scp -O packages/*_1.2-r3_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_1.3-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # auf dem Router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.2-r3_all.apk ./luci-app-mesh-roaming_1.2-r3_all.apk
+apk add --allow-untrusted ./mesh-roaming_1.3-r1_all.apk ./luci-app-mesh-roaming_1.3-r1_all.apk
 
 # bzw. auf dem Router (opkg, bis OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.2-r3_all.ipk ./luci-app-mesh-roaming_1.2-r3_all.ipk
+opkg install ./mesh-roaming_1.3-r1_all.ipk ./luci-app-mesh-roaming_1.3-r1_all.ipk
 ```
 
 Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
@@ -389,9 +436,9 @@ PolyForm Noncommercial) und eigenen
 
 | Programm | Version | Anzeige |
 |---|---|---|
-| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 1.2 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
-| Raspberry-Pi-Variante (`src/`, `systemd/`) | 1.2 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
-| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.2-r3 | `apk info -v` bzw. `opkg list-installed` |
+| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 1.3 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
+| Raspberry-Pi-Variante (`src/`, `systemd/`) | 1.3 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
+| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 1.3-r1 | `apk info -v` bzw. `opkg list-installed` |
 | WLAN-Analyzer | 1.1.1 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
 
 Änderungen je Version: [`CHANGELOG.md`](CHANGELOG.md). Alle Versionsangaben

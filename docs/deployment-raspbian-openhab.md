@@ -69,7 +69,10 @@ nach `/etc/mesh-roaming/config.json` kopieren und ausfüllen:
   900×600-Karte, grob nach echtem Grundriss verteilen), `mgmt_ips` (IPs, unter
   denen andere Router diesen Router im usteer-Netz sehen – Teil vor dem `#`
   in `ubus call usteer remote_info`; nur nötig, wenn das nicht schon `ip`
-  ist, sonst leeres Array lassen).
+  ist, sonst leeres Array lassen). Optional `role`: `"ap"` (Standard) oder
+  `"sensor"` für einen **Messpunkt** – einen Router, der nur als WLAN-Client
+  im Netz hängt und nur die Kanalauslastung seiner Funkkarten misst (siehe
+  README, Abschnitt „Kanalauslastung“).
 - `ap_ifnames` – Vorlage geht vom bekannten OpenWrt-Schema `phy0-ap0..3`/
   `phy1-ap0..3` aus. Auf einem der Router per `ubus list | grep hostapd`
   gegenprüfen, falls das eigene Netz ein anderes Chipsatz-/Namensschema hat.
@@ -149,11 +152,13 @@ der Neustart fehlt. Änderungen je Version: [`CHANGELOG.md`](../CHANGELOG.md).
 - Live-Karte mit Roaming-Pfeilen, Signalstärke-Radar, Detail-Panel je Client.
 - Zentrales Ereignis-Log (Connect/Roam/Disconnect) in SQLite auf dem Pi –
   konsistent für alle Betrachter, überlebt einen Dienst-Neustart.
-- Kanalauslastung je Router/Band (eigene/fremde Nutzung/Rest), neu berechnet
-  als gleitende 10-Sekunden-Differenz aus `iw dev <ifname> survey dump` –
-  funktioniert automatisch, sobald die Router das unterstützen (ältere
-  Chipsätze liefern ggf. kein `channel BSS receive time`; die Anzeige zeigt
-  dafür sauber „nicht verfügbar" statt falscher Werte).
+- Kanalauslastung je Router und Funkkarte, neu berechnet als gleitende
+  10-Sekunden-Differenz aus `iw dev <ifname> survey dump`. Treiber mit
+  `channel BSS receive time` (z. B. mt76) zeigen eigene/fremde Nutzung,
+  ältere wie ath9k Senden/Empfang/Störung/frei. Funktioniert auch mit
+  Client-Interfaces (Messpunkte).
+- Mit MQTT zusätzlich die Auslastungswerte je Router und Band, z. B. für
+  openHAB → InfluxDB → Grafana (Topics: README, Abschnitt „MQTT-Topics“).
 - Client-Punkte: voller Punkt = 5 GHz, Ring = 2,4 GHz.
 
 ## Für ein weiteres Netz

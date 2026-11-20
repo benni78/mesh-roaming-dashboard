@@ -34,6 +34,11 @@
     --chanutil-own:#3987e5;
     --chanutil-foreign:#e66767;
     --chanutil-rest:#2f3d46;
+    /* Treiber ohne BSS-Empfangszeit (z. B. ath9k): Senden/Empfang/Stoerung/Frei */
+    --chanutil-tx:#5cc17e;
+    --chanutil-rx:#9a7fe0;
+    --chanutil-other:#e8a33d;
+    --sensor:#c9a3f0;
     --font-display:'IBM Plex Sans Condensed',system-ui,sans-serif;
     --font-body:'IBM Plex Sans',system-ui,sans-serif;
     --font-mono:'IBM Plex Mono',ui-monospace,Consolas,monospace;
@@ -182,9 +187,18 @@
   .util-seg.own{background:var(--chanutil-own);}
   .util-seg.foreign{background:var(--chanutil-foreign);}
   .util-seg.rest{background:var(--chanutil-rest);}
+  .util-seg.tx{background:var(--chanutil-tx);}
+  .util-seg.rx{background:var(--chanutil-rx);}
+  .util-seg.other{background:var(--chanutil-other);}
   .util-seg-label{font-family:var(--font-mono);font-size:9.5px;font-variant-numeric:tabular-nums;white-space:nowrap;padding:0 4px;}
   .util-seg.own .util-seg-label{color:#06172e;}
+  .util-seg.tx .util-seg-label{color:#06200f;}
   .util-seg.foreign .util-seg-label{color:#300606;}
+  .util-seg.rx .util-seg-label{color:#1c1033;}
+  .util-seg.other .util-seg-label{color:#2e1d03;}
+  .util-band-sub{font-size:10px;color:var(--text-muted);margin:-1px 0 3px;}
+  .util-router-badge{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--sensor);margin-left:6px;}
+  .host-title.sensor{fill:var(--sensor);}
   .util-unavailable{font-size:11px;color:var(--text-muted);font-style:italic;padding:2px 0;}
   .util-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;padding-top:10px;border-top:1px solid var(--panel-border);}
   .util-legend-item{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);}
@@ -192,6 +206,9 @@
   .util-legend-swatch.own{background:var(--chanutil-own);}
   .util-legend-swatch.foreign{background:var(--chanutil-foreign);}
   .util-legend-swatch.rest{background:var(--chanutil-rest);}
+  .util-legend-swatch.tx{background:var(--chanutil-tx);}
+  .util-legend-swatch.rx{background:var(--chanutil-rx);}
+  .util-legend-swatch.other{background:var(--chanutil-other);}
   .util-empty{color:var(--text-muted);font-size:12.5px;font-style:italic;}
 </style>
 </head>
@@ -391,14 +408,16 @@
 
   // ---- Konfiguration anwenden (einmalig beim Start, s. loadConfigAndStart) -
   function applyConfig(cfg){
+    // role: "ap" (Standard) oder "sensor" (Messpunkt - nur Kanalauslastung,
+    // keine Clients; z. B. ein Router, der nur als WLAN-Client im Netz haengt)
     ROUTERS = (cfg.routers || []).map(function(r){
-      return { id: r.id, room: r.room, name: r.name, ip: r.ip };
+      return { id: r.id, room: r.room, name: r.name, ip: r.ip, role: r.role || 'ap' };
     });
     ROUTER_BY_ID = {};
     HOST_POS = {};
     MGMT_IP_TO_ROUTER = {};
     (cfg.routers || []).forEach(function(r){
-      ROUTER_BY_ID[r.id] = { id: r.id, room: r.room, name: r.name, ip: r.ip };
+      ROUTER_BY_ID[r.id] = { id: r.id, room: r.room, name: r.name, ip: r.ip, role: r.role || 'ap' };
       HOST_POS[r.id] = { x: r.map_x, y: r.map_y };
       // Ohne eigene mgmt_ips gilt die normale Router-IP (usteer laeuft meist
       // im LAN). Explizit eingetragene mgmt_ips haben Vorrang.
@@ -574,6 +593,19 @@
       var status = routerStatus[r.id];
       var hasError = status && status !== 'ok';
 
+      if (r.role === 'sensor') {
+        // Messpunkt: keine Clients/Signal-Ringe - Raute statt Punkt, Name in
+        // eigener Farbe, Untertitel "Messpunkt" (Details s. Kanalauslastung).
+        var dsz = 9;
+        hostParts.push('<path class="host-dot" data-host-id="'+r.id+'" d="M '+cx+' '+(cy-dsz)+' L '+(cx+dsz)+' '+cy+' L '+cx+' '+(cy+dsz)+' L '+(cx-dsz)+' '+cy+' Z" style="fill:'+(hasError?'#e2685c':'var(--sensor)')+'" stroke="#0d1317" stroke-width="2"><title>Messpunkt – nur Kanalauslastung</title></path>');
+        hostParts.push('<text class="host-title sensor'+(hasError?' err':'')+'" x="'+cx+'" y="'+(cy-22)+'" text-anchor="middle">'+escapeHtml(r.name)+'</text>');
+        var sensorSub = hasError
+          ? (escapeHtml(r.room)+' · '+escapeHtml(String(status)))
+          : ('Messpunkt · '+escapeHtml(r.room)+' · '+r.ip);
+        hostParts.push('<text class="host-sub'+(hasError?' err':'')+'" x="'+cx+'" y="'+(cy+24)+'" text-anchor="middle">'+sensorSub+'</text>');
+        return;
+      }
+
       REFERENCE_RINGS_DBM.forEach(function(dbm){
         var rr = radiusForSignal(dbm);
         bgParts.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+fmt(rr)+'" fill="none" stroke="#202b31" stroke-width="1" stroke-dasharray="2,4"></circle>');
@@ -667,6 +699,7 @@
     var rows = ['<div class="summary-row"><span>Clients gesamt</span><span class="n">'+total+'</span></div>'];
     rows.push('<div class="summary-sub">Nach Router</div>');
     ROUTERS.forEach(function(r){
+      if (r.role === 'sensor') return; // Messpunkte haben keine Clients
       var n = Object.keys((lastPerRouterData[r.id]||{}).flat || {}).length;
       // Ueberschrift je Router ist der Routername, der Ort steht als Untertitel
       // darunter (Nutzer-Vorgabe, gilt fuer alle Router-Bezeichnungen).
@@ -899,25 +932,54 @@
     '</div>';
   }
 
-  function renderUtilBand(ifname, data){
+  // Segmente je Messart (s. _compute_util im Dienst):
+  //  own_foreign - Treiber mit BSS-Empfangszeit (z. B. mt76): eigen/fremd/frei
+  //  rx_tx       - Treiber ohne (z. B. ath9k): Senden/Empfang/Stoerung/frei
+  var UTIL_SEGMENTS = {
+    own_foreign: [
+      { cls:'own', key:'own', label:'Eigene Nutzung' },
+      { cls:'foreign', key:'foreign', label:'Fremde Nutzung' },
+      { cls:'rest', key:'rest', label:'Rest (frei)' }
+    ],
+    rx_tx: [
+      { cls:'tx', key:'tx', label:'Senden' },
+      { cls:'rx', key:'rx', label:'Empfang (eigenes Netz + Nachbarn)' },
+      { cls:'other', key:'other', label:'Störung / nicht dekodierbar' },
+      { cls:'rest', key:'free', label:'Frei' }
+    ]
+  };
+  var utilModesSeen = {};
+
+  function renderUtilBand(phy, data){
     if (!data) {
       return '<div class="util-band">' +
-        '<div class="util-band-head"><span>'+escapeHtml(ifname)+'</span></div>' +
-        '<div class="util-unavailable">nicht verfügbar (Treiber liefert keine BSS-Empfangszeit)</div>' +
+        '<div class="util-band-head"><span>'+escapeHtml(phy)+'</span></div>' +
+        '<div class="util-unavailable">nicht verfügbar (Treiber liefert keine passenden Zähler)</div>' +
       '</div>';
     }
-    var label = bandLabel(data.band, data.freq_mhz);
-    var ownTitle = 'Eigene Nutzung: '+fmtMs(data.own_ms)+' ('+fmtPct(data.own_pct)+')';
-    var foreignTitle = 'Fremde Nutzung: '+fmtMs(data.foreign_ms)+' ('+fmtPct(data.foreign_pct)+')';
-    var restTitle = 'Rest (frei): '+fmtMs(data.rest_ms)+' ('+fmtPct(data.rest_pct)+')';
+    var mode = UTIL_SEGMENTS[data.mode] ? data.mode : 'own_foreign';
+    utilModesSeen[mode] = true;
+    var label = bandLabel(data.band, data.freq_mhz) + (data.channel ? ' · Kanal '+data.channel : '');
+    var sub = [];
+    if (data.iftype === 'managed') sub.push('Client'+(data.ssid ? ' von „'+escapeHtml(data.ssid)+'“' : ''));
+    else if (data.iftype === 'mesh') sub.push('Mesh');
+    if (typeof data.busy_pct === 'number') sub.push('belegt '+fmtPct(data.busy_pct));
+    if (typeof data.noise_dbm === 'number') sub.push('Rauschen '+data.noise_dbm+' dBm');
+    var segs = UTIL_SEGMENTS[mode].map(function(s){
+      var pctV = data[s.key+'_pct'], msV = data[s.key+'_ms'];
+      return utilSegmentHtml(s.cls, pctV, msV, pctV, s.label+': '+fmtMs(msV)+' ('+fmtPct(pctV)+')');
+    }).join('');
     return '<div class="util-band">' +
-      '<div class="util-band-head"><span>'+escapeHtml(label)+'</span><span>letzte '+fmt(data.window_sec)+' s</span></div>' +
-      '<div class="util-bar">' +
-        utilSegmentHtml('own', data.own_pct, data.own_ms, data.own_pct, ownTitle) +
-        utilSegmentHtml('foreign', data.foreign_pct, data.foreign_ms, data.foreign_pct, foreignTitle) +
-        utilSegmentHtml('rest', data.rest_pct, data.rest_ms, data.rest_pct, restTitle) +
-      '</div>' +
+      '<div class="util-band-head"><span>'+label+'</span><span>letzte '+fmt(data.window_sec)+' s</span></div>' +
+      (sub.length ? '<div class="util-band-sub">'+sub.join(' · ')+'</div>' : '') +
+      '<div class="util-bar">'+segs+'</div>' +
     '</div>';
+  }
+
+  function utilSortKey(data, phy){
+    var order = { '2g':0, '5g':1, '6g':2 };
+    var b = data && data.band ? order[String(data.band).toLowerCase()] : undefined;
+    return (b === undefined ? 9 : b) + ':' + phy;
   }
 
   function renderUtil(){
@@ -930,29 +992,41 @@
     // auch ohne Daten, statt es stillschweigend wegzulassen; so bleibt
     // erkennbar, dass fuer dieses Geraet (noch) keine Kanaldaten vorliegen,
     // statt dass es wie ein Darstellungsfehler aussieht.
+    utilModesSeen = {};
     var parts = ROUTERS.map(function(r){
       var perIf = lastChannelUtil[r.id];
       var bands;
       if (!perIf || !Object.keys(perIf).length) {
         bands = '<div class="util-unavailable">noch keine Kanaldaten</div>';
       } else {
-        bands = Object.keys(perIf).sort().map(function(ifname){
-          return renderUtilBand(ifname, perIf[ifname]);
+        bands = Object.keys(perIf).sort(function(a, b){
+          return utilSortKey(perIf[a], a) < utilSortKey(perIf[b], b) ? -1 : 1;
+        }).map(function(phy){
+          return renderUtilBand(phy, perIf[phy]);
         }).join('');
       }
       // Ueberschrift ist der Routername, der Ort steht als Untertitel darunter
       // (Nutzer-Vorgabe, gilt fuer alle Router-Bezeichnungen in dieser Seite).
-      return '<div class="util-router"><div class="util-router-name">'+escapeHtml(r.name)+'</div>'+
+      var badge = r.role === 'sensor' ? '<span class="util-router-badge">Messpunkt</span>' : '';
+      return '<div class="util-router"><div class="util-router-name">'+escapeHtml(r.name)+badge+'</div>'+
         '<div class="util-router-room">'+escapeHtml(r.room)+'</div>'+bands+'</div>';
     });
 
-    parts.push(
-      '<div class="util-legend">' +
-        '<span class="util-legend-item"><span class="util-legend-swatch own"></span>Eigene Nutzung</span>' +
-        '<span class="util-legend-item"><span class="util-legend-swatch foreign"></span>Fremde Nutzung</span>' +
-        '<span class="util-legend-item"><span class="util-legend-swatch rest"></span>Rest (frei)</span>' +
-      '</div>'
-    );
+    // Legende nur mit den Segmentarten, die tatsaechlich vorkommen
+    // (ohne Daten: Standard eigen/fremd/frei).
+    if (!Object.keys(utilModesSeen).length) utilModesSeen.own_foreign = true;
+    var legendSeen = {};
+    var legendItems = [];
+    ['own_foreign', 'rx_tx'].forEach(function(mode){
+      if (!utilModesSeen[mode]) return;
+      UTIL_SEGMENTS[mode].forEach(function(s){
+        var text = s.cls === 'rest' ? 'Frei' : s.label;
+        if (legendSeen[text]) return;
+        legendSeen[text] = true;
+        legendItems.push('<span class="util-legend-item"><span class="util-legend-swatch '+s.cls+'"></span>'+text+'</span>');
+      });
+    });
+    parts.push('<div class="util-legend">'+legendItems.join('')+'</div>');
     utilList.innerHTML = parts.join('');
   }
 
@@ -1040,7 +1114,7 @@
   }
 
   // ---- Version ------------------------------------------------------------
-  var APP_VERSION = '1.2'; // MESH_ROAMING_VERSION
+  var APP_VERSION = '1.3'; // MESH_ROAMING_VERSION
   function showVersion(serverVersion){
     var el = document.getElementById('appVersion');
     var text = 'Version ' + APP_VERSION;

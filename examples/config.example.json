@@ -108,6 +108,15 @@
       "map_x": 450,
       "map_y": 450,
       "mgmt_ips": []
+    },
+    {
+      "id": "messpunkt-garten",
+      "ip": "192.0.2.20",
+      "name": "Messpunkt-Garten",
+      "room": "Gartenhaus",
+      "map_x": 300,
+      "map_y": 560,
+      "role": "sensor"
     }
   ],
 

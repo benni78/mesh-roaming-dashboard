@@ -7,7 +7,7 @@
 
 // Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-var VERSION = '1.2'; // MESH_ROAMING_VERSION
+var VERSION = '1.3'; // MESH_ROAMING_VERSION
 
 // Router-Liste des Mesh-Roaming-Dashboards (UCI-Typ "router" in
 // /etc/config/mesh-roaming). Aufbau wie die Instanz-Liste unter
@@ -153,6 +153,18 @@ return view.extend({
 			'Client-LAN-IP, ueber die dieser Router per SSH erreicht wird.');
 		o.datatype = 'ipaddr';
 		o.rmempty = false;
+
+		o = s.option(form.ListValue, 'role', 'Rolle',
+			'„Access Point“: Clients, Roaming und Kanalauslastung. „Messpunkt“: nur die ' +
+			'Kanalauslastung aller Funkkarten, z. B. fuer einen Router, der nur als ' +
+			'WLAN-Client im Netz haengt – es werden keine Client-Listen, DHCP-Leases ' +
+			'oder ARP-Tabellen abgefragt.');
+		o.value('ap', 'Access Point');
+		o.value('sensor', 'Messpunkt');
+		o.default = 'ap';
+		o.textvalue = function (section_id) {
+			return (this.cfgvalue(section_id) === 'sensor') ? 'Messpunkt' : 'Access Point';
+		};
 
 		o = s.option(form.Flag, 'local', 'Dieser Router',
 			'Markiert den Router, auf dem dieser Dienst selbst laeuft ' +

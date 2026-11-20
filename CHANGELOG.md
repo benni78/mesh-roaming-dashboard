@@ -2,6 +2,27 @@
 
 ## Mesh Roaming Dashboard
 
+### 1.3 (Pakete 1.3-r1)
+
+- **Messpunkte** (Issue #5): Router mit der Rolle „Messpunkt“
+  (`"role": "sensor"`, LuCI: Router → Rolle) messen nur die Kanalauslastung
+  ihrer Funkkarten, z. B. ein Router, der nur als WLAN-Client im Netz hängt.
+  Von ihnen werden keine Client-Listen, DHCP-Leases oder ARP-Tabellen
+  abgefragt. Auf der Karte erscheinen sie als Raute ohne Signal-Ringe.
+- Kanalauslastung je Funkkarte statt je AP-Interface: Der Dienst wählt auf
+  jedem Router selbst ein Interface je Funkkarte (AP, Client, Mesh oder
+  Monitor). Das Band ergibt sich aus der Frequenz.
+- Treiber ohne `channel BSS receive time` (z. B. ath9k: AR9340, AR9580)
+  zeigen jetzt Senden/Empfang/Störung/frei statt „nicht verfügbar“.
+- Zu jedem Band werden Kanal, Gesamtbelegung und Rauschen angezeigt, bei
+  Client-Interfaces auch das verbundene WLAN. Nach einem Kanalwechsel
+  beginnt die Messung neu, statt über zwei Kanäle zu mitteln.
+- MQTT: Auslastung je Router und Band unter
+  `<base>/<router>/util/<band>/…` (busy, own/foreign bzw. rx/tx/other,
+  free, noise, channel). Siehe README, Abschnitt „MQTT-Topics“.
+- Raspberry Pi: `"role"` in der `config.json`; zum Übernehmen die Dateien
+  wie unter „Aktualisieren“ in der Pi-Anleitung ersetzen.
+
 ### 1.2 (Pakete 1.2-r3)
 
 - OpenWrt 23.05 (opkg): Bei der Installation erscheint nicht mehr

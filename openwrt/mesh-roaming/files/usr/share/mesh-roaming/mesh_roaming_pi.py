@@ -53,7 +53,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "1.2"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
+__version__ = "1.3"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -154,8 +154,9 @@ DEFAULT_CONFIG = {
         # "ssid_colors_by_name": {"MeinWLAN": "#5fb56f", "Gaeste": "#d97b32"}
         "ssid_colors_by_name": {},
     },
-    # Kanalauslastung - je AP-Interface (ein Interface pro Funkband wird
-    # automatisch ausgewaehlt, s. compute_survey_ifnames()) per "iw dev <ifname>
+    # Kanalauslastung - je Funkkarte (phy; ein Interface je phy wird auf dem
+    # Router automatisch gewaehlt, egal ob AP, Client oder Mesh, s.
+    # SURVEY_SHELL) per "iw dev <ifname>
     # survey dump" ermittelt und als gleitende Differenz ueber 'interval_sec'
     # neu berechnet (NICHT als Anteil seit Geraete-/Interface-Start - die
     # Zaehler aus dem Kernel sind kumulativ seit Interface-up). own/foreign
@@ -240,6 +241,14 @@ def load_config(path):
         # in den eigenen authorized_keys. Bei allen anderen Setups (Dienst auf
         # separatem Pi) bleibt dieses Feld ueberall false/weggelassen.
         r.setdefault("local", False)
+        # "role": "ap" (Standard) = Access Point mit Clients/Roaming;
+        # "sensor" = Messpunkt, z. B. ein Router, der nur als WLAN-Client im
+        # Netz haengt - von ihm wird nur die Kanalauslastung abgefragt (keine
+        # Clients, DHCP-Leases oder ARP-Tabelle, s. build_remote_cmd()).
+        r.setdefault("role", "ap")
+        if r["role"] not in ROLES:
+            raise SystemExit("Router %s in %s: unbekannte Rolle %r (erlaubt: %s)"
+                             % (r["id"], path, r["role"], ", ".join(ROLES)))
 
     if not cfg.get("ap_ifnames"):
         raise SystemExit("Konfiguration %s: 'ap_ifnames' ist leer." % path)
@@ -253,12 +262,13 @@ def load_config(path):
 
 # --- Aus der Konfiguration abgeleitete Laufzeit-Werte (siehe main()) -------
 
+ROLES = ("ap", "sensor")
+
 CONFIG = None
-ROUTERS = {}          # id -> {ip, name, room, map_x, map_y, mgmt_ips}
+ROUTERS = {}          # id -> {ip, name, room, map_x, map_y, mgmt_ips, role}
 AP_IFNAMES = []
-SURVEY_IFNAMES = []   # Teilmenge von AP_IFNAMES: ein Interface je Funkband/phy (s. compute_survey_ifnames)
 UTIL_WINDOW_SEC = 10.0
-REMOTE_CMD = ""
+REMOTE_CMDS = {}      # Rolle -> Befehlszeile (s. build_remote_cmd)
 SSH_USER = "root"
 SSH_KEY = ""
 SSH_CONNECT_TIMEOUT = 5
@@ -286,38 +296,44 @@ MQTT_TLS_INSECURE = False
 STATE = None  # wird in main() gesetzt
 
 
-def compute_survey_ifnames(ap_ifnames):
-    # Waehlt automatisch GENAU EIN AP-Interface je Funkband/phy aus ap_ifnames
-    # aus (das jeweils erste in der konfigurierten Reihenfolge), ueber das
-    # spaeter "iw dev <ifname> survey dump" abgefragt wird. Survey-Daten sind
-    # eine Eigenschaft des Kanals/der Phy, nicht der einzelnen SSID/des
-    # einzelnen AP-Interfaces - jedes AP-Interface derselben Phy liefert
-    # identische Kanal-Statistiken, ein zusaetzliches Konfigurationsfeld dafuer
-    # waere also redundant (User-Entscheidung).
-    seen = {}
-    order = []
-    for ifn in ap_ifnames:
-        grp = ifn.split("-ap")[0] if "-ap" in ifn else ifn
-        if grp not in seen:
-            seen[grp] = ifn
-            order.append(grp)
-    return [seen[g] for g in order]
+# Kanalauslastung: Survey-Daten sind eine Eigenschaft der Funkkarte (phy) und
+# ihres aktuellen Kanals, nicht eines einzelnen Interfaces - jedes Interface
+# derselben phy liefert dieselben Zaehler. Deshalb wird auf dem Router je phy
+# das erste Interface aus "iw dev" genommen, egal ob AP ("type AP"), Client
+# ("type managed", z. B. phy1-sta0), Mesh oder Monitor. So funktioniert die
+# Messung auch auf einem Router, der nur als WLAN-Client im Netz haengt, und
+# mit beliebigen Interface-Namen (wlan0, mesh0, ...). Je phy entsteht ein
+# Abschnitt "===SURVEY <phy> <ifname> <typ>===", bei Client-/AP-Interfaces
+# gefolgt von "SSID=<name>" (das Netz, in dem der Messpunkt Client ist).
+SURVEY_SHELL = (
+    "iw dev 2>/dev/null | awk '"
+    "/^phy#/{p=\"phy\" substr($1,5)} "
+    "$1==\"Interface\"{i=$2; s=\"\"} "
+    "$1==\"ssid\"{s=substr($0, index($0, \"ssid \")+5)} "
+    "$1==\"type\"{if(!(p in seen)){seen[p]=1; print p, i, $2, s}}' "
+    "| while read p i t s; do echo \"===SURVEY $p $i $t===\"; "
+    "[ -n \"$s\" ] && echo \"SSID=$s\"; iw dev \"$i\" survey dump 2>/dev/null; done"
+)
 
 
-def build_remote_cmd():
-    parts = ["echo ===WIRELESS===", "ubus call network.wireless status"]
-    for ifname in AP_IFNAMES:
-        parts.append("echo ===HOSTAPD-%s===" % ifname)
-        parts.append("ubus call hostapd.%s get_clients 2>/dev/null" % ifname)
-    parts.append("echo ===USTEER===")
-    parts.append("ubus call usteer get_clients 2>/dev/null")
-    parts.append("echo ===LEASES===")
-    parts.append("cat /tmp/dhcp.leases 2>/dev/null")
-    parts.append("echo ===ARP===")
-    parts.append("cat /proc/net/arp 2>/dev/null")
-    for ifname in SURVEY_IFNAMES:
-        parts.append("echo ===SURVEY-%s===" % ifname)
-        parts.append("iw dev %s survey dump 2>/dev/null" % ifname)
+def build_remote_cmd(role="ap"):
+    parts = []
+    if role != "sensor":
+        # Messpunkte ("sensor") haben keine eigenen Clients - von ihnen werden
+        # bewusst KEINE Client-Listen, DHCP-Leases oder ARP-Tabellen abgefragt
+        # (Datenminimierung, s. README "Datenschutz").
+        parts += ["echo ===WIRELESS===", "ubus call network.wireless status"]
+        for ifname in AP_IFNAMES:
+            parts.append("echo ===HOSTAPD-%s===" % ifname)
+            parts.append("ubus call hostapd.%s get_clients 2>/dev/null" % ifname)
+        parts.append("echo ===USTEER===")
+        parts.append("ubus call usteer get_clients 2>/dev/null")
+        parts.append("echo ===LEASES===")
+        parts.append("cat /tmp/dhcp.leases 2>/dev/null")
+        parts.append("echo ===ARP===")
+        parts.append("cat /proc/net/arp 2>/dev/null")
+    parts.append("echo ===SURVEYS===")
+    parts.append(SURVEY_SHELL)
     parts.append("echo ===DONE===")
     return "; ".join(parts)
 
@@ -326,7 +342,7 @@ def known_hosts_path():
     return os.path.join(os.path.dirname(DB_PATH) or ".", "known_hosts")
 
 
-def build_ssh_cmd(router_ip):
+def build_ssh_cmd(router_ip, remote_cmd):
     cmd = [
         "ssh",
         "-o", "BatchMode=yes",
@@ -341,7 +357,7 @@ def build_ssh_cmd(router_ip):
             "-o", "ControlPath=%s/cm-%%r@%%h:%%p" % RUNTIME_DIR,
             "-o", "ControlPersist=%s" % CONTROL_PERSIST,
         ]
-    cmd += ["%s@%s" % (SSH_USER, router_ip), REMOTE_CMD]
+    cmd += ["%s@%s" % (SSH_USER, router_ip), remote_cmd]
     return cmd
 
 
@@ -360,7 +376,32 @@ _SURVEY_FIELD_RE = {
     "transmit_ms": re.compile(r"channel transmit time:\s*([0-9]+)\s*ms"),
     "bss_receive_ms": re.compile(r"channel BSS receive time:\s*([0-9]+)\s*ms"),
 }
+_SURVEY_NOISE_RE = re.compile(r"noise:\s*(-?[0-9]+)\s*dBm")
 _SURVEY_FREQ_RE = re.compile(r"frequency:\s*([0-9]+)\s*MHz\s*\[in use\]")
+_SURVEY_HEAD_RE = re.compile(r"^===SURVEY (\S+) (\S+) (\S+)===$")
+
+
+def band_for_freq(freq_mhz):
+    """'2g'/'5g'/'6g' aus der Mittenfrequenz (unabhaengig vom Interface-Typ)."""
+    if not freq_mhz:
+        return None
+    if freq_mhz < 3000:
+        return "2g"
+    if freq_mhz < 5925:
+        return "5g"
+    return "6g"
+
+
+def channel_for_freq(freq_mhz):
+    if not freq_mhz:
+        return None
+    if freq_mhz == 2484:
+        return 14
+    if freq_mhz < 3000:
+        return (freq_mhz - 2407) // 5
+    if freq_mhz < 5925:
+        return (freq_mhz - 5000) // 5
+    return (freq_mhz - 5950) // 5
 
 
 def _parse_one_survey_block(section_lines):
@@ -386,16 +427,43 @@ def _parse_one_survey_block(section_lines):
         for key, rx in _SURVEY_FIELD_RE.items():
             m = rx.search(text)
             out[key] = int(m.group(1)) if m else None
+        m = _SURVEY_NOISE_RE.search(text)
+        out["noise_dbm"] = int(m.group(1)) if m else None
         return out
     return None
 
 
 def parse_survey_output(lines):
+    """Abschnitte "===SURVEY <phy> <ifname> <typ>===" (s. SURVEY_SHELL) ->
+    {phy: sample oder None}. sample enthaelt zusaetzlich ifname, iftype,
+    ssid (falls vorhanden), band und channel."""
     result = {}
-    for i, ifname in enumerate(SURVEY_IFNAMES):
-        start_marker = "===SURVEY-%s===" % ifname
-        end_marker = "===SURVEY-%s===" % SURVEY_IFNAMES[i + 1] if i < len(SURVEY_IFNAMES) - 1 else "===DONE==="
-        result[ifname] = _parse_one_survey_block(get_section(lines, start_marker, end_marker))
+    blocks = []
+    current = None
+    for line in lines:
+        stripped = line.strip()
+        m = _SURVEY_HEAD_RE.match(stripped)
+        if m:
+            current = {"phy": m.group(1), "ifname": m.group(2), "iftype": m.group(3), "ssid": None, "lines": []}
+            blocks.append(current)
+            continue
+        if stripped == "===DONE===":
+            current = None
+            continue
+        if current is not None:
+            if stripped.startswith("SSID=") and not current["lines"]:
+                current["ssid"] = stripped[5:] or None
+            else:
+                current["lines"].append(line)
+    for b in blocks:
+        sample = _parse_one_survey_block(b["lines"])
+        if sample is not None:
+            sample.update({
+                "ifname": b["ifname"], "iftype": b["iftype"], "ssid": b["ssid"],
+                "band": band_for_freq(sample["freq_mhz"]),
+                "channel": channel_for_freq(sample["freq_mhz"]),
+            })
+        result[b["phy"]] = sample
     return result
 
 
@@ -481,8 +549,7 @@ def convert_router_output(lines):
             if parts[3] and parts[3] != "*":
                 names[mac] = parts[3]
 
-    arp_end_marker = "===SURVEY-%s===" % SURVEY_IFNAMES[0] if SURVEY_IFNAMES else "===DONE==="
-    for line in get_section(lines, "===ARP===", arp_end_marker):
+    for line in get_section(lines, "===ARP===", "===SURVEYS==="):
         if line.strip().startswith("IP address"):
             continue
         parts = line.strip().split()
@@ -490,16 +557,10 @@ def convert_router_output(lines):
             mac = parts[3].lower()
             ips.setdefault(mac, parts[0])
 
-    # Kanalauslastung: Band je Interface aus demselben iface_info, das
-    # oben bereits aus ===WIRELESS=== gewonnen wurde - so bleibt "Band" fuer
-    # Anzeige/Gruppierung konsistent mit den Client-Zuordnungen.
-    survey = {}
-    for ifname, sample in parse_survey_output(lines).items():
-        if sample is None:
-            continue
-        info = iface_info.get(ifname)
-        sample["band"] = info["band"] if info else None
-        survey[ifname] = sample
+    # Kanalauslastung je phy; das Band ergibt sich aus der Frequenz (s.
+    # parse_survey_output) - funktioniert damit auch fuer Client-Interfaces,
+    # die in iface_info (nur AP-Interfaces) gar nicht vorkommen.
+    survey = {phy: s for phy, s in parse_survey_output(lines).items() if s is not None}
 
     return router_result, names, ips, survey
 
@@ -784,17 +845,23 @@ class MeshState:
             return removed_log
 
     def update_survey(self, rid, survey):
-        # survey: ifname -> {"freq_mhz", "active_ms", "busy_ms", "receive_ms",
-        # "transmit_ms", "bss_receive_ms", "band"} - kumulative Zaehler aus
+        # survey: phy -> {"freq_mhz", "active_ms", "busy_ms", "receive_ms",
+        # "transmit_ms", "bss_receive_ms", "noise_dbm", "band", "channel",
+        # "ifname", "iftype", "ssid"} - kumulative Zaehler aus
         # "iw dev <ifname> survey dump" seit Interface-Up (s. parse_survey_output).
         with self.lock:
             now = time.time()
             router_hist = self.util_history.setdefault(rid, {})
             router_latest = self.util_latest.setdefault(rid, {})
-            for ifname, sample in (survey or {}).items():
+            for phy, sample in (survey or {}).items():
                 if sample is None:
                     continue
-                dq = router_hist.setdefault(ifname, deque())
+                dq = router_hist.setdefault(phy, deque())
+                # Kanalwechsel (z. B. AP des Messpunkts wechselt den Kanal):
+                # Zaehler beziehen sich dann auf einen anderen Kanal - alte
+                # Samples verwerfen statt ueber zwei Kanaele zu mitteln.
+                if dq and dq[-1][1].get("freq_mhz") != sample.get("freq_mhz"):
+                    dq.clear()
                 dq.append((now, sample))
                 # Nur so viel Historie behalten wie fuer die naechste Differenz
                 # gebraucht wird (etwas mehr als 2x Fensterbreite als Puffer
@@ -804,8 +871,9 @@ class MeshState:
                     dq.popleft()
                 computed = self._compute_util(dq)
                 if computed is not None:
-                    computed["band"] = sample.get("band")
-                router_latest[ifname] = computed
+                    for key in ("band", "channel", "ifname", "iftype", "ssid", "noise_dbm"):
+                        computed[key] = sample.get(key)
+                router_latest[phy] = computed
 
     @staticmethod
     def _compute_util(deque_samples):
@@ -840,11 +908,50 @@ class MeshState:
             return delta if delta >= 0 else None
 
         active_delta = d("active_ms")
+        busy_delta = d("busy_ms")
         receive_delta = d("receive_ms")
         transmit_delta = d("transmit_ms")
         bss_receive_delta = d("bss_receive_ms")
         if active_delta is None or active_delta <= 0:
             return None
+
+        def pct(ms):
+            return round(ms / active_delta * 100, 1)
+
+        base = {
+            "freq_mhz": newest.get("freq_mhz"),
+            "window_sec": round(elapsed_sec, 1),
+            "active_ms": active_delta,
+            "busy_pct": pct(min(busy_delta, active_delta)) if busy_delta is not None else None,
+        }
+
+        if bss_receive_delta is None and receive_delta is not None and transmit_delta is not None:
+            # Treiber ohne "channel BSS receive time" (z. B. ath9k: AR9340,
+            # AR9580) - keine Aufteilung eigen/fremd moeglich. Stattdessen
+            # ehrlich gemessene Anteile (User-Entscheidung, Issue #5):
+            #   Senden    = transmit
+            #   Empfang   = receive (eigenes Netz UND Nachbarn zusammen)
+            #   Stoerung  = busy - receive - transmit (Kanal belegt, aber kein
+            #               dekodierbarer WLAN-Frame: andere Funktechnik,
+            #               zu schwache/kollidierte Frames)
+            #   Frei      = active - busy
+            rx_ms, tx_ms = receive_delta, transmit_delta
+            if rx_ms + tx_ms > active_delta:
+                scale = active_delta / (rx_ms + tx_ms)
+                rx_ms *= scale
+                tx_ms *= scale
+            busy = min(busy_delta, active_delta) if busy_delta is not None else rx_ms + tx_ms
+            busy = max(busy, rx_ms + tx_ms)
+            other_ms = busy - rx_ms - tx_ms
+            free_ms = active_delta - busy
+            base.update({
+                "mode": "rx_tx",
+                "rx_ms": round(rx_ms), "tx_ms": round(tx_ms),
+                "other_ms": round(other_ms), "free_ms": round(free_ms),
+                "rx_pct": pct(rx_ms), "tx_pct": pct(tx_ms),
+                "other_pct": pct(other_ms), "free_pct": pct(free_ms),
+            })
+            return base
 
         # "Eigene Nutzung" = eigene BSS-Empfangszeit + eigene Sendezeit (User-
         # Entscheidung): was der AP fuer/durch sein eigenes BSS gesendet UND
@@ -873,17 +980,16 @@ class MeshState:
             foreign_ms *= scale
         rest_ms = active_delta - (own_ms + foreign_ms)
 
-        return {
-            "freq_mhz": newest.get("freq_mhz"),
-            "window_sec": round(elapsed_sec, 1),
-            "active_ms": active_delta,
+        base.update({
+            "mode": "own_foreign",
             "own_ms": round(own_ms),
             "foreign_ms": round(foreign_ms),
             "rest_ms": round(rest_ms),
             "own_pct": round(own_ms / active_delta * 100, 1),
             "foreign_pct": round(foreign_ms / active_delta * 100, 1),
             "rest_pct": round(rest_ms / active_delta * 100, 1),
-        }
+        })
+        return base
 
     def rename(self, mac, name):
         mac = mac.lower()
@@ -935,8 +1041,15 @@ class MeshState:
             }
 
     def client_counts_per_router(self):
+        # Messpunkte ("sensor") haben keine Clients - keine Zahl melden.
         with self.lock:
-            return {rid: len(self._flat_clients(self.routers.get(rid))) for rid in ROUTERS}
+            return {rid: len(self._flat_clients(self.routers.get(rid)))
+                    for rid, r in ROUTERS.items() if r.get("role") != "sensor"}
+
+    def util_snapshot(self):
+        """Kopie der aktuellen Kanalauslastung: rid -> phy -> Werte oder None."""
+        with self.lock:
+            return {rid: dict(per_phy) for rid, per_phy in self.util_latest.items()}
 
     def log_len(self):
         with self.lock:
@@ -945,16 +1058,17 @@ class MeshState:
 
 # ---- Router-Poller (ein Thread je Router) --------------------------------
 
-def router_worker(rid, ip, stop_event, local=False):
+def router_worker(rid, ip, stop_event, local=False, role="ap"):
     # "local": der Dienst laeuft auf genau diesem Router - die
     # ubus-Abfrage wird direkt ueber die lokale Shell ausgefuehrt statt per
     # SSH auf sich selbst. Timeout/Fehlerbehandlung bleiben identisch zum
     # SSH-Fall, nur der eigentliche Verbindungsaufbau entfaellt.
-    cmd = [ "/bin/sh", "-c", REMOTE_CMD ] if local else None
+    remote_cmd = REMOTE_CMDS[role]
+    cmd = [ "/bin/sh", "-c", remote_cmd ] if local else None
     while not stop_event.is_set():
         try:
             proc = subprocess.run(
-                cmd if local else build_ssh_cmd(ip),
+                cmd if local else build_ssh_cmd(ip, remote_cmd),
                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                 text=True, timeout=SSH_COMMAND_TIMEOUT,
             )
@@ -1027,6 +1141,41 @@ def mqtt_base_cmd():
     return cmd
 
 
+# Kanalauslastung je Router und Funkband als einzelne Zahlen-Topics (fuer
+# openHAB-Items -> InfluxDB -> Grafana):
+#   <base>/<router>/util/<band>/busy      Kanal belegt gesamt, %
+#   .../own, .../foreign, .../free        Treiber mit BSS-Empfangszeit (mt76)
+#   .../rx, .../tx, .../other, .../free   Treiber ohne (ath9k), s. _compute_util
+#   .../noise                             Rauschen, dBm
+#   .../channel                           aktueller Kanal
+# <band> ist 2g/5g/6g; haben zwei Funkkarten eines Routers dasselbe Band,
+# wird stattdessen der phy-Name (phy0, phy1, ...) verwendet.
+_UTIL_MQTT_FIELDS = {
+    "own_foreign": (("own", "own_pct"), ("foreign", "foreign_pct"), ("free", "rest_pct")),
+    "rx_tx": (("rx", "rx_pct"), ("tx", "tx_pct"), ("other", "other_pct"), ("free", "free_pct")),
+}
+
+
+def util_mqtt_values(util):
+    out = []
+    for rid in sorted(util):
+        per_phy = util[rid] or {}
+        bands = [(v or {}).get("band") for v in per_phy.values()]
+        for phy in sorted(per_phy):
+            v = per_phy[phy]
+            if not v:
+                continue
+            band = v.get("band")
+            key = band if band and bands.count(band) == 1 else phy
+            prefix = "%s/util/%s" % (rid, key)
+            fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("channel", "channel")]
+            fields += list(_UTIL_MQTT_FIELDS.get(v.get("mode"), ()))
+            for name, field in fields:
+                if v.get(field) is not None:
+                    out.append(("%s/%s" % (prefix, name), str(v[field])))
+    return out
+
+
 def mqtt_publisher(stop_event):
     if not MQTT_BROKER:
         return
@@ -1049,6 +1198,8 @@ def mqtt_publisher(stop_event):
             for rid, n in counts.items():
                 publish("%s/%s/clients" % (MQTT_BASE_TOPIC, rid), str(n))
             publish("%s/roam_events_total" % MQTT_BASE_TOPIC, str(STATE.log_len()))
+            for topic, value in util_mqtt_values(STATE.util_snapshot()):
+                publish("%s/%s" % (MQTT_BASE_TOPIC, topic), value)
         except Exception as e:
             # Fehler (falsches Passwort, Broker weg, Zertifikat ungueltig)
             # sichtbar machen, aber hoechstens einmal pro Minute ins Log.
@@ -1070,6 +1221,7 @@ def public_config():
             {
                 "id": r["id"], "ip": r["ip"], "name": r["name"], "room": r["room"],
                 "map_x": r["map_x"], "map_y": r["map_y"], "mgmt_ips": r.get("mgmt_ips") or [],
+                "role": r.get("role", "ap"),
             }
             for r in CONFIG["routers"]
         ],
@@ -1205,7 +1357,7 @@ class MeshRoamingServer(ThreadingHTTPServer):
 
 
 def main():
-    global CONFIG, STATE, ROUTERS, AP_IFNAMES, SURVEY_IFNAMES, UTIL_WINDOW_SEC, REMOTE_CMD
+    global CONFIG, STATE, ROUTERS, AP_IFNAMES, UTIL_WINDOW_SEC, REMOTE_CMDS
     global SSH_USER, SSH_KEY, SSH_CONNECT_TIMEOUT, SSH_COMMAND_TIMEOUT
     global USE_CONTROL_MASTER, CONTROL_PERSIST, POLL_INTERVAL_SEC
     global HTTP_BIND, HTTP_PORT, DB_PATH, RUNTIME_DIR, HTML_PATH, LOG_MAX
@@ -1225,9 +1377,8 @@ def main():
 
     ROUTERS = {r["id"]: r for r in CONFIG["routers"]}
     AP_IFNAMES = CONFIG["ap_ifnames"]
-    SURVEY_IFNAMES = compute_survey_ifnames(AP_IFNAMES)
     UTIL_WINDOW_SEC = float(CONFIG["channel_util"]["interval_sec"])
-    REMOTE_CMD = build_remote_cmd()
+    REMOTE_CMDS = {role: build_remote_cmd(role) for role in ROLES}
 
     SSH_USER = CONFIG["ssh"]["user"]
     SSH_KEY = CONFIG["ssh"]["key_path"]
@@ -1279,7 +1430,7 @@ def main():
     threads = []
     for rid, r in ROUTERS.items():
         t = threading.Thread(
-            target=router_worker, args=(rid, r["ip"], stop_event, bool(r.get("local"))),
+            target=router_worker, args=(rid, r["ip"], stop_event, bool(r.get("local")), r.get("role", "ap")),
             daemon=True, name="poll-%s" % rid,
         )
         t.start()

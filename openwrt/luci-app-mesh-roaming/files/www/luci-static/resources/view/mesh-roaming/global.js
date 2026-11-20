@@ -4,7 +4,7 @@
 
 // Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-var VERSION = '1.2'; // MESH_ROAMING_VERSION
+var VERSION = '1.3'; // MESH_ROAMING_VERSION
 
 // Grundeinstellungen des Mesh-Roaming-Dashboards (UCI-Sektion
 // "config global 'main'" in /etc/config/mesh-roaming). Nach dem Speichern

@@ -29,7 +29,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "1.2"  # MESH_ROAMING_VERSION
+__version__ = "1.3"  # MESH_ROAMING_VERSION
 
 import argparse
 import json
@@ -146,6 +146,9 @@ def build_config(sections):
             "map_x": _int(o, "map_x", 0),
             "map_y": _int(o, "map_y", 0),
             "mgmt_ips": s["lists"].get("mgmt_ip", []),
+            # "ap" = Access Point (Standard), "sensor" = Messpunkt (nur
+            # Kanalauslastung, z. B. Router als reiner WLAN-Client)
+            "role": "sensor" if _str(o, "role", "ap") == "sensor" else "ap",
         }
         if _bool(o, "local", False):
             entry["local"] = True
