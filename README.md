@@ -249,6 +249,16 @@ einem Client-Interface auch das WLAN, mit dem es verbunden ist. Unter jedem
 Band steht der WLAN-Treiber und ob er eigenen und fremden Verkehr trennen
 kann („eigen/fremd getrennt gemessen“ bzw. „nicht unterscheidbar“).
 
+**Eigener Verkehr über die verbundenen Geräte:** Zusätzlich summiert der
+Dienst die Sende- und Empfangszeit aller verbundenen Geräte (beim AP die
+Clients, beim Messpunkt die Verbindung zum AP) aus `iw dev <if> station
+dump` (`rx duration`/`tx duration`). Das steht als Abgleich unter jedem Band
+(„Eigener Verkehr 20 % · Kanal belegt 35 %“). Bei Chips ohne
+BSS-Empfangszeit (ath9k) teilt es außerdem den Empfang auf in „Empfang
+eigener Geräte (gemessen)“ und „Empfang übrige WLANs“. Beacons und
+Verwaltungspakete sind darin nicht enthalten. Liefert der Treiber diese
+Zähler nicht, entfällt die Zeile.
+
 **Messpunkt einrichten:** Router wie jeden anderen eintragen (SSH-Schlüssel,
 IP, Kartenposition) und die Rolle auf „Messpunkt“ setzen (LuCI: Router →
 Bearbeiten → Rolle; JSON: `"role": "sensor"`). Gemessen wird jeweils der
@@ -274,6 +284,8 @@ Mit gesetztem `mqtt.broker` sendet der Dienst alle
 | `<base>/<router>/util/<band>/channel` | aktueller Kanal |
 | `<base>/<router>/util/<band>/mode` | `own_foreign` (Chip trennt eigen/fremd) oder `rx_tx` (Chip kann das nicht) |
 | `<base>/<router>/util/<band>/driver` | WLAN-Treiber, z. B. `ath9k`, `mt7915e` |
+| `<base>/<router>/util/<band>/own_sta` | eigener Verkehr, über die verbundenen Geräte gemessen, % |
+| `<base>/<router>/util/<band>/rx_own`, `…/rx_other` | Empfang eigener Geräte / übriger WLANs, % (Treiber ohne BSS-Empfangszeit) |
 
 `<band>` ist `2g`, `5g` oder `6g`. Hat ein Router zwei Funkkarten im
 selben Band, steht dort stattdessen der Name der Funkkarte (`phy0`,

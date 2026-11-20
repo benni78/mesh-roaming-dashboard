@@ -200,6 +200,8 @@
   .util-band-cap{font-family:var(--font-mono);font-size:9.5px;margin:0 0 3px;cursor:help;}
   .util-band-cap.full{color:var(--text-muted);}
   .util-band-cap.limited{color:var(--chanutil-other);}
+  .util-band-cap.partial{color:var(--text-secondary);}
+  .util-band-sta{font-size:10px;color:var(--text-secondary);margin:0 0 3px;cursor:help;}
   .util-notes{font-size:10.5px;line-height:1.45;color:var(--text-muted);margin-top:8px;}
   .util-router-badge{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--sensor);margin-left:6px;}
   .host-title.sensor{fill:var(--sensor);}
@@ -957,6 +959,15 @@
         legend:'Empfang (alle WLANs auf dem Kanal)' },
       { cls:'other', key:'other', label:'Störung / nicht dekodierbar', legend:'Störung / nicht dekodierbar' },
       { cls:'rest', key:'free', label:'Frei', legend:'Frei' }
+    ],
+    // Wie rx_tx, aber der Empfang ist ueber die Airtime-Zaehler der
+    // verbundenen Geraete aufgeteilt (#11)
+    rx_tx_sta: [
+      { cls:'tx', key:'tx', label:'Senden (dieser Router)', legend:'Senden' },
+      { cls:'own', key:'rx_own', label:'Empfang von eigenen Geräten (gemessen)', legend:'Empfang eigener Geräte (gemessen)' },
+      { cls:'rx', key:'rx_other', label:'Empfang – übrige WLANs auf dem Kanal', legend:'Empfang übrige WLANs' },
+      { cls:'other', key:'other', label:'Störung / nicht dekodierbar', legend:'Störung / nicht dekodierbar' },
+      { cls:'rest', key:'free', label:'Frei', legend:'Frei' }
     ]
   };
   var utilModesSeen = {};
@@ -964,6 +975,12 @@
   // Was der Chip dieser Funkkarte bei der Kanalauslastung kann (#10).
   function utilCapability(data){
     var drv = data.driver ? 'Treiber '+data.driver : 'Treiber unbekannt';
+    if (data.mode === 'rx_tx' && data.sta_available) {
+      return { text: drv+' · eigener Verkehr über Geräte gemessen', cls:'partial',
+        title: 'Dieser WLAN-Chip meldet keine Empfangszeit je Netz (BSS). Der eigene Anteil wird '+
+               'stattdessen über die Sende-/Empfangszeit der verbundenen Geräte gemessen; der Rest '+
+               'des Empfangs stammt von anderen WLANs auf dem Kanal.' };
+    }
     if (data.mode === 'rx_tx') {
       return { text: drv+' · eigen/fremd nicht unterscheidbar', cls:'limited',
         title: 'Dieser WLAN-Chip meldet keine Empfangszeit je Netz (BSS). „Empfang“ enthält '+
@@ -974,6 +991,21 @@
              'Verkehr werden getrennt gemessen.' };
   }
 
+  // Abgleich: eigener Verkehr ueber die verbundenen Geraete gemessen (#11)
+  function utilStationLine(data, isClient){
+    if (!data.sta_available || typeof data.sta_pct !== 'number') return '';
+    var who = isClient ? 'Verkehr dieses Messpunkts'
+      : 'Eigener Verkehr ('+data.sta_count+' '+(data.sta_count === 1 ? 'Gerät' : 'Geräte')+')';
+    var parts = [who+' '+fmtPct(data.sta_pct)];
+    if (typeof data.busy_pct === 'number') parts.push('Kanal belegt '+fmtPct(data.busy_pct));
+    if (data.mode === 'own_foreign' && typeof data.own_pct === 'number')
+      parts.push((isClient ? 'verbundenes Netz ' : 'eigenes Netz ')+fmtPct(data.own_pct));
+    var title = 'Summe der Sende- und Empfangszeit aller '+(isClient ? 'Verbindungen dieses Messpunkts'
+      : 'verbundenen Geräte')+' laut WLAN-Treiber (Airtime-Zähler), zum Abgleich mit der Kanalauslastung. '+
+      'Beacons und Verwaltungspakete sind darin nicht enthalten.';
+    return '<div class="util-band-sta" title="'+escapeHtml(title)+'">'+escapeHtml(parts.join(' · '))+'</div>';
+  }
+
   function renderUtilBand(phy, data){
     if (!data) {
       return '<div class="util-band">' +
@@ -982,8 +1014,9 @@
       '</div>';
     }
     var mode = UTIL_SEGMENTS[data.mode] ? data.mode : 'own_foreign';
-    utilModesSeen[mode] = true;
     var isClient = data.iftype === 'managed';
+    if (mode === 'rx_tx' && typeof data.rx_own_pct === 'number') mode = 'rx_tx_sta';
+    utilModesSeen[mode] = true;
     var label = bandLabel(data.band, data.freq_mhz) + (data.channel ? ' · Kanal '+data.channel : '');
     var sub = [];
     if (data.iftype === 'managed') sub.push('Client'+(data.ssid ? ' von „'+escapeHtml(data.ssid)+'“' : ''));
@@ -993,8 +1026,10 @@
     var segs = UTIL_SEGMENTS[mode].map(function(s){
       var pctV = data[s.key+'_pct'], msV = data[s.key+'_ms'];
       var text = s.label;
-      if (s.cls === 'own' && isClient)
+      if (s.key === 'own' && isClient)
         text = 'Verbundenes Netz'+(data.ssid ? ' „'+data.ssid+'“' : '')+' (alle Geräte darin)';
+      if (s.key === 'rx_own' && isClient)
+        text = 'Empfang für diesen Messpunkt (gemessen)';
       return utilSegmentHtml(s.cls, pctV, msV, pctV, text+': '+fmtMs(msV)+' ('+fmtPct(pctV)+')');
     }).join('');
     var cap = utilCapability(data);
@@ -1002,6 +1037,7 @@
       '<div class="util-band-head"><span>'+label+'</span><span>letzte '+fmt(data.window_sec)+' s</span></div>' +
       (sub.length ? '<div class="util-band-sub">'+sub.join(' · ')+'</div>' : '') +
       '<div class="util-band-cap '+cap.cls+'" title="'+escapeHtml(cap.title)+'">'+escapeHtml(cap.text)+'</div>' +
+      utilStationLine(data, isClient) +
       '<div class="util-bar">'+segs+'</div>' +
     '</div>';
   }
@@ -1047,7 +1083,7 @@
     if (!Object.keys(utilModesSeen).length) utilModesSeen.own_foreign = true;
     var legendSeen = {};
     var legendItems = [];
-    ['own_foreign', 'rx_tx'].forEach(function(mode){
+    ['own_foreign', 'rx_tx', 'rx_tx_sta'].forEach(function(mode){
       if (!utilModesSeen[mode]) return;
       UTIL_SEGMENTS[mode].forEach(function(s){
         var text = s.legend;
@@ -1063,6 +1099,10 @@
       notes.push('<b>Eigen/fremd getrennt</b> (z. B. mt76): „Eigenes Netz“ ist der Verkehr im Funknetz '+
         'dieses Access Points; bei einem Messpunkt (WLAN-Client) das Netz, mit dem er verbunden ist – '+
         'mit allen Geräten darin.');
+    if (utilModesSeen.rx_tx_sta)
+      notes.push('<b>Eigener Verkehr über Geräte gemessen</b> (z. B. ath9k): Der Chip trennt nicht nach Netz, '+
+        'der eigene Anteil stammt aus der Sende-/Empfangszeit der verbundenen Geräte; „übrige WLANs“ ist der '+
+        'restliche Empfang.');
     if (utilModesSeen.rx_tx)
       notes.push('<b>Eigen/fremd nicht unterscheidbar</b> (z. B. ath9k): Der Chip meldet nur die gesamte '+
         'Empfangszeit. „Empfang“ umfasst alle WLANs auf dem Kanal – eigene und fremde zusammen.');

@@ -23,6 +23,13 @@
   Nachbarn“, bei Client-Interfaces heißt der eigene Anteil „verbundenes
   Netz“. Kurze Erklärungen unter der Legende. Neue MQTT-Werte
   `…/util/<band>/mode` und `…/driver`.
+- **Eigener Verkehr über die verbundenen Geräte gemessen** (Issue #11):
+  Der Dienst summiert die Sende-/Empfangszeit aller verbundenen Geräte
+  (`iw station dump`, `rx/tx duration`) und zeigt sie je Band als Abgleich
+  zur Kanalauslastung. Bei ath9k teilt das den Empfang auf in „eigene
+  Geräte (gemessen)“ und „übrige WLANs“. MAC-Adressen dienen nur intern
+  der Differenzbildung und werden weder gespeichert noch angezeigt. Neue
+  MQTT-Werte `…/own_sta`, `…/rx_own`, `…/rx_other`.
 
 ### 1.3 (Pakete 1.3-r2)
 

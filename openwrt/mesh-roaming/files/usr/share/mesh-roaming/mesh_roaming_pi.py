@@ -321,6 +321,24 @@ SURVEY_SHELL = (
 )
 
 
+# Eigener Verkehr je Funkkarte (#11): Fuer JEDES WLAN-Interface die
+# Sende-/Empfangszeit je verbundener Station aus "iw dev <if> station dump"
+# (mac80211-Airtime-Zaehler "rx duration"/"tx duration" in Mikrosekunden,
+# kumulativ). Beim AP sind das alle Clients, beim Messpunkt (Client) der AP,
+# mit dem er verbunden ist. Ausgegeben werden nur Station-Zeile (MAC als
+# Schluessel fuer die Differenzbildung - wird weder gespeichert noch
+# angezeigt), die beiden Zeiten und das Signal (fuer den Signal-Rausch-
+# Abstand eines Client-Interfaces, #12).
+STATION_SHELL = (
+    "iw dev 2>/dev/null | awk '"
+    "/^phy#/{p=\"phy\" substr($1,5)} "
+    "$1==\"Interface\"{print p, $2}' "
+    "| while read p i; do echo \"===STA $p $i===\"; "
+    "iw dev \"$i\" station dump 2>/dev/null "
+    "| grep -E '^Station|rx duration|tx duration|signal:'; done"
+)
+
+
 def build_remote_cmd(role="ap"):
     parts = []
     if role != "sensor":
@@ -339,6 +357,8 @@ def build_remote_cmd(role="ap"):
         parts.append("cat /proc/net/arp 2>/dev/null")
     parts.append("echo ===SURVEYS===")
     parts.append(SURVEY_SHELL)
+    parts.append("echo ===STATIONS===")
+    parts.append(STATION_SHELL)
     parts.append("echo ===DONE===")
     return "; ".join(parts)
 
@@ -453,7 +473,7 @@ def parse_survey_output(lines):
                        "driver": None, "lines": []}
             blocks.append(current)
             continue
-        if stripped == "===DONE===":
+        if stripped in ("===DONE===", "===STATIONS===") or stripped.startswith("===STA "):
             current = None
             continue
         if current is not None:
@@ -473,6 +493,53 @@ def parse_survey_output(lines):
                 "channel": channel_for_freq(sample["freq_mhz"]),
             })
         result[b["phy"]] = sample
+    return result
+
+
+_STA_HEAD_RE = re.compile(r"^===STA (\S+) (\S+)===$")
+_STA_MAC_RE = re.compile(r"^Station\s+([0-9a-fA-F:]{17})")
+_STA_RX_DUR_RE = re.compile(r"rx duration:\s*([0-9]+)\s*us")
+_STA_TX_DUR_RE = re.compile(r"tx duration:\s*([0-9]+)\s*us")
+_STA_SIGNAL_RE = re.compile(r"^signal:\s*(-?[0-9]+)")
+
+
+def parse_station_output(lines):
+    """Abschnitte "===STA <phy> <ifname>===" (s. STATION_SHELL) ->
+    {phy: {"<ifname>|<mac>": {"rx_us", "tx_us", "signal_dbm", "ifname"}}}.
+    Fehlende Werte (Treiber ohne Airtime-Zaehler) bleiben None."""
+    result = {}
+    phy = ifname = None
+    sta = None
+    for line in lines:
+        s = line.strip()
+        m = _STA_HEAD_RE.match(s)
+        if m:
+            phy, ifname = m.group(1), m.group(2)
+            result.setdefault(phy, {})
+            sta = None
+            continue
+        if s.startswith("===") or phy is None:
+            phy = None if s.startswith("===") else phy
+            sta = None
+            continue
+        m = _STA_MAC_RE.match(s)
+        if m:
+            sta = {"rx_us": None, "tx_us": None, "signal_dbm": None, "ifname": ifname}
+            result[phy]["%s|%s" % (ifname, m.group(1).lower())] = sta
+            continue
+        if sta is None:
+            continue
+        m = _STA_RX_DUR_RE.search(s)
+        if m:
+            sta["rx_us"] = int(m.group(1))
+            continue
+        m = _STA_TX_DUR_RE.search(s)
+        if m:
+            sta["tx_us"] = int(m.group(1))
+            continue
+        m = _STA_SIGNAL_RE.match(s)
+        if m:
+            sta["signal_dbm"] = int(m.group(1))
     return result
 
 
@@ -570,6 +637,9 @@ def convert_router_output(lines):
     # parse_survey_output) - funktioniert damit auch fuer Client-Interfaces,
     # die in iface_info (nur AP-Interfaces) gar nicht vorkommen.
     survey = {phy: s for phy, s in parse_survey_output(lines).items() if s is not None}
+    for phy, stations in parse_station_output(lines).items():
+        if phy in survey:
+            survey[phy]["stations"] = stations
 
     return router_result, names, ips, survey
 
@@ -927,6 +997,10 @@ class MeshState:
         def pct(ms):
             return round(ms / active_delta * 100, 1)
 
+        # Eigener Verkehr ueber die Airtime-Zaehler der verbundenen Stationen
+        # (#11) - unabhaengig davon, ob der Chip BSS-Empfangszeit liefert.
+        sta = MeshState._station_airtime(ref, newest)
+
         base = {
             "freq_mhz": newest.get("freq_mhz"),
             "window_sec": round(elapsed_sec, 1),
@@ -960,6 +1034,15 @@ class MeshState:
                 "rx_pct": pct(rx_ms), "tx_pct": pct(tx_ms),
                 "other_pct": pct(other_ms), "free_pct": pct(free_ms),
             })
+            if sta is not None:
+                # Empfang aufteilen: von den eigenen Stationen empfangen
+                # (gemessen) vs. Rest = andere WLANs auf dem Kanal (#11)
+                rx_own = min(sta["rx_ms"], rx_ms)
+                base.update({
+                    "rx_own_ms": round(rx_own), "rx_other_ms": round(rx_ms - rx_own),
+                    "rx_own_pct": pct(rx_own), "rx_other_pct": pct(rx_ms - rx_own),
+                })
+            MeshState._add_station_fields(base, sta, active_delta)
             return base
 
         # "Eigene Nutzung" = eigene BSS-Empfangszeit + eigene Sendezeit (User-
@@ -998,7 +1081,60 @@ class MeshState:
             "foreign_pct": round(foreign_ms / active_delta * 100, 1),
             "rest_pct": round(rest_ms / active_delta * 100, 1),
         })
+        MeshState._add_station_fields(base, sta, active_delta)
         return base
+
+    @staticmethod
+    def _station_airtime(ref, newest):
+        """Summe der Sende-/Empfangszeit aller Stationen zwischen zwei
+        Samples (#11). Nur Stationen, die in beiden Samples vorkommen
+        (neu verbundene/getrennte fallen fuer dieses Fenster heraus).
+        -> {"rx_ms", "tx_ms", "stations"} oder None, wenn der Treiber keine
+        Airtime-Zaehler liefert."""
+        a = ref.get("stations")
+        b = newest.get("stations")
+        if a is None or b is None:
+            return None
+        if not b:
+            # Keine verbundenen Geraete - eigener Verkehr ist dann 0.
+            return {"rx_ms": 0.0, "tx_ms": 0.0, "stations": 0}
+        rx_us = tx_us = 0
+        supported = False
+        for key, nb in b.items():
+            if nb.get("rx_us") is not None or nb.get("tx_us") is not None:
+                supported = True
+            na = a.get(key)
+            if not na:
+                continue
+            for field in ("rx_us", "tx_us"):
+                if nb.get(field) is None or na.get(field) is None:
+                    continue
+                delta = nb[field] - na[field]
+                if delta < 0:
+                    continue  # Zaehler zurueckgesetzt (Neuverbindung)
+                if field == "rx_us":
+                    rx_us += delta
+                else:
+                    tx_us += delta
+        if not supported:
+            return None
+        return {"rx_ms": rx_us / 1000.0, "tx_ms": tx_us / 1000.0, "stations": len(b)}
+
+    @staticmethod
+    def _add_station_fields(base, sta, active_delta):
+        """Eigener Verkehr (gemessen ueber die Stationen) zum Abgleich mit
+        der Kanalauslastung (#11)."""
+        if sta is None:
+            base["sta_available"] = False
+            return
+        total = min(sta["rx_ms"] + sta["tx_ms"], active_delta)
+        base.update({
+            "sta_available": True,
+            "sta_count": sta["stations"],
+            "sta_rx_ms": round(sta["rx_ms"]),
+            "sta_tx_ms": round(sta["tx_ms"]),
+            "sta_pct": round(total / active_delta * 100, 1),
+        })
 
     def rename(self, mac, name):
         mac = mac.lower()
@@ -1164,6 +1300,10 @@ def mqtt_base_cmd():
 #   .../mode                              own_foreign (Chip trennt eigen/fremd)
 #                                         oder rx_tx (Chip kann das nicht), #10
 #   .../driver                            WLAN-Treiber, z. B. ath9k, mt7915e
+#   .../own_sta                           eigener Verkehr ueber die verbundenen
+#                                         Stationen gemessen, % (#11)
+#   .../rx_own, .../rx_other              ath9k: Empfang von eigenen Stationen
+#                                         bzw. von anderen WLANs, % (#11)
 # <band> ist 2g/5g/6g; haben zwei Funkkarten eines Routers dasselbe Band,
 # wird stattdessen der phy-Name (phy0, phy1, ...) verwendet.
 _UTIL_MQTT_FIELDS = {
@@ -1185,7 +1325,8 @@ def util_mqtt_values(util):
             key = band if band and bands.count(band) == 1 else phy
             prefix = "%s/util/%s" % (rid, key)
             fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("channel", "channel"),
-                      ("mode", "mode"), ("driver", "driver")]
+                      ("mode", "mode"), ("driver", "driver"), ("own_sta", "sta_pct"),
+                      ("rx_own", "rx_own_pct"), ("rx_other", "rx_other_pct")]
             fields += list(_UTIL_MQTT_FIELDS.get(v.get("mode"), ()))
             for name, field in fields:
                 if v.get(field) is not None:

@@ -238,6 +238,16 @@ interface also the network it is connected to. Below each band the WiFi
 driver is shown together with whether it can separate own and foreign
 traffic.
 
+**Own traffic via the connected devices:** the service also sums up the
+transmit and receive time of all connected devices (clients of an AP, the
+link to the AP for a measuring point) from `iw dev <if> station dump`
+(`rx duration`/`tx duration`). It is shown below each band for comparison
+("Eigener Verkehr 20 % · Kanal belegt 35 %"). For chips without BSS receive
+time (ath9k) it also splits the receive share into "received from own
+devices (measured)" and "other WiFi networks". Beacons and management
+frames are not included. If the driver does not provide these counters,
+the line is omitted.
+
 **Setting up a measuring point:** add the router like any other (SSH key,
 IP, map position) and set the role to "Messpunkt" (LuCI: Routers → Edit →
 Rolle; JSON: `"role": "sensor"`). It measures the channel the client
@@ -263,6 +273,8 @@ With `mqtt.broker` set, the service publishes every
 | `<base>/<router>/util/<band>/channel` | current channel |
 | `<base>/<router>/util/<band>/mode` | `own_foreign` (chip separates own/foreign) or `rx_tx` (chip cannot) |
 | `<base>/<router>/util/<band>/driver` | WiFi driver, e.g. `ath9k`, `mt7915e` |
+| `<base>/<router>/util/<band>/own_sta` | own traffic measured via the connected devices, % |
+| `<base>/<router>/util/<band>/rx_own`, `…/rx_other` | received from own devices / other networks, % (drivers without BSS receive time) |
 
 `<band>` is `2g`, `5g` or `6g`. If a router has two radios in the same
 band, the radio name (`phy0`, `phy1`, …) is used instead. Values the driver
