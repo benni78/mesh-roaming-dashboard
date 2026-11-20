@@ -332,24 +332,24 @@ the current version (architecture `all`, run on any target):
 
 | File | for |
 |---|---|
-| `mesh-roaming_1.3-r2_all.apk` | service, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.3-r2_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.3-r2_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.3-r2_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
+| `mesh-roaming_1.4-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_1.4-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_1.4-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_1.4-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
 
 ```sh
 # on the PC: copy the packages to the router (-O: Dropbear has no SFTP)
-scp -O packages/*_1.3-r2_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_1.4-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # on the router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: packages intact?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.3-r2_all.apk ./luci-app-mesh-roaming_1.3-r2_all.apk
+apk add --allow-untrusted ./mesh-roaming_1.4-r1_all.apk ./luci-app-mesh-roaming_1.4-r1_all.apk
 
 # or on the router (opkg, up to OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.3-r2_all.ipk ./luci-app-mesh-roaming_1.3-r2_all.ipk
+opkg install ./mesh-roaming_1.4-r1_all.ipk ./luci-app-mesh-roaming_1.4-r1_all.ipk
 ```
 
 The package manager fetches the dependencies (`python3`, `python3-sqlite3`,
@@ -455,7 +455,7 @@ own [third-party notices](tools/WlanAnalyzer/THIRD-PARTY-NOTICES.md).
 |---|---|---|
 | Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 1.3 | `--version`, live page header, LuCI page title, `/config.json` |
 | Raspberry Pi variant (`src/`, `systemd/`) | 1.3 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
-| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 1.3-r2 | `apk info -v` or `opkg list-installed` |
+| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 1.4-r1 | `apk info -v` or `opkg list-installed` |
 | WLAN Analyzer | 1.1.1 | title bar, *Info*, `--version`, EXE file properties |
 
 Changes per version: [`CHANGELOG.md`](CHANGELOG.md). All version strings of
