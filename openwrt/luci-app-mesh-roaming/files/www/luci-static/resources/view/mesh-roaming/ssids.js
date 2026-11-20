@@ -1,10 +1,10 @@
 'use strict';
 'require form';
 'require view';
+'require mesh-roaming.common as mrcommon';
 
 // Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-var VERSION = '1.3'; // MESH_ROAMING_VERSION
 
 // Feste Farben je SSID-Name (UCI-Typ "ssid_color" in
 // /etc/config/mesh-roaming). Optional - jede SSID, die hier nicht
@@ -13,10 +13,14 @@ var VERSION = '1.3'; // MESH_ROAMING_VERSION
 // Entdeckungsreihenfolge zugewiesen.
 
 return view.extend({
-	render: function () {
+	load: function () {
+		return mrcommon.loadVersions();
+	},
+
+	render: function (versions) {
 		var m, s, o;
 
-		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard ' + VERSION + ' – SSID-Farben',
+		m = new form.Map('mesh-roaming', mrcommon.title(versions, 'SSID-Farben'),
 			'Optional: feste Farbe je SSID-Name, statt automatischer Zuweisung ' +
 			'nach Entdeckungsreihenfolge.');
 
@@ -35,6 +39,6 @@ return view.extend({
 		o.placeholder = '#5b8dd6';
 		o.datatype = 'and(minlength(4),maxlength(7))';
 
-		return m.render();
+		return m.render().then(L.bind(mrcommon.withHints, mrcommon, versions));
 	}
 });

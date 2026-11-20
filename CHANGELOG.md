@@ -2,6 +2,21 @@
 
 ## Mesh Roaming Dashboard
 
+### 1.4 (Pakete 1.4-r1)
+
+- **LuCI zeigt die installierte Version** (Issue #9): Die Seitentitel nennen
+  die tatsächlich installierte Paketversion (z. B. „1.4-r1“) statt einer in
+  den JS-Dateien fest eingetragenen. Hinweise erscheinen, wenn die Seite
+  noch aus dem Browser-Cache stammt („Veraltete Seite – Strg+F5“) oder der
+  Dienst nach einem Upgrade noch mit der alten Version läuft. Neu:
+  `/usr/libexec/mesh-roaming-version`, `/api/status` liefert die Version
+  des laufenden Dienstes.
+- **OpenWrt 25.12 (apk): Dienst startet nach einem Upgrade neu.** Bisher
+  hat `apk` beim Upgrade die `postinst` nicht ausgeführt (apk ruft dafür
+  `.post-upgrade` auf), der Dienst lief mit dem alten Code weiter. Die
+  `.apk`-Pakete enthalten jetzt beide Skripte (lokale Änderung 3 am
+  übernommenen `openwrt-ipk2apk`).
+
 ### 1.3 (Pakete 1.3-r2)
 
 - Der eigene Router wird automatisch als „Dieser Router“ eingetragen

@@ -1,5 +1,5 @@
 #!/bin/sh
-# Version 1.3 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Version 1.4 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
 # Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 #
@@ -113,6 +113,11 @@ build_one() {
 	for f in LICENSE THIRD-PARTY-NOTICES.md; do
 		[ -f "$REPO_DIR/$f" ] || { echo "Fehler: $REPO_DIR/$f fehlt" >&2; exit 1; }
 		cp "$REPO_DIR/$f" "$work/files/usr/share/licenses/$name/"
+	done
+	# Vollstaendige Paketversion in die LuCI-Dateien eintragen (Erkennung
+	# einer Seite aus dem Browser-Cache, s. luci-app-mesh-roaming common.js)
+	grep -rl "@PKG_VERSION@" "$work/files" 2>/dev/null | while read -r f; do
+		sed -i "s/@PKG_VERSION@/$version/g" "$f"
 	done
 	# Python-Bytecode (z. B. von einem lokalen py_compile) nicht mitpacken
 	find "$work/files" -type d -name __pycache__ -prune -exec rm -rf {} +

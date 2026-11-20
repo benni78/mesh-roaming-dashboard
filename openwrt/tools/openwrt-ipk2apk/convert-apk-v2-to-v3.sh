@@ -137,7 +137,8 @@ convert_one() {
     [[ -n "$provs" ]] && args+=(--info "provides:$provs") && vmsg "    provides: $provs"
 
     # Scripts (pre/post install/deinstall).
-    for st in pre-install post-install pre-deinstall post-deinstall; do
+    # Local patch 3 (mesh-roaming-dashboard): also carry over post-upgrade.
+    for st in pre-install post-install post-upgrade pre-deinstall post-deinstall; do
         [[ -f "$control/.$st" ]] && args+=(--script "$st:$control/.$st")
     done
 

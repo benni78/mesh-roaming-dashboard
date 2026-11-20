@@ -1,0 +1,52 @@
+#!/bin/sh
+# Gibt die installierten Paketversionen und die Version des laufenden
+# Dienstes als JSON aus, z. B.
+#   {"packages": {"mesh-roaming": "1.4-r1", "luci-app-mesh-roaming": "1.4-r1"},
+#    "service": "1.4", "service_running": true}
+# "service" ist null, wenn der Dienst nicht laeuft oder eine Version vor 1.4
+# ist (die meldet noch keine Version) - "service_running" unterscheidet das.
+#
+# Wird von luci-app-mesh-roaming ueber rpcd aufgerufen (#9): Die Seiten
+# zeigen so die tatsaechlich installierte Version statt einer in den
+# JS-Dateien fest eingetragenen und erkennen eine Seite aus dem
+# Browser-Cache bzw. einen fehlenden Dienst-Neustart nach einem Upgrade.
+#
+# Quelle: opkg (/usr/lib/opkg/info/<paket>.control, bis OpenWrt 24.10) oder
+# apk (/lib/apk/db/installed, ab 25.12).
+#
+# Version 1.4 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Copyright Benjamin Johann (mesh-roaming-dashboard)
+# SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
+
+if [ "$1" = "--version" ]; then
+	echo "mesh-roaming-version (mesh-roaming-dashboard) 1.4"
+	exit 0
+fi
+
+pkg_version() {
+	if [ -f "/usr/lib/opkg/info/$1.control" ]; then
+		sed -n 's/^Version: *//p' "/usr/lib/opkg/info/$1.control" | head -n1
+	elif [ -f /lib/apk/db/installed ]; then
+		awk -v p="$1" '/^P:/{n=substr($0,3)} /^V:/{if(n==p){print substr($0,3); exit}} /^$/{n=""}' /lib/apk/db/installed
+	fi
+}
+
+# Als JSON-String oder null (Versionen enthalten nur [0-9A-Za-z.~_+-],
+# alles andere wird sicherheitshalber entfernt).
+json_str() {
+	v=$(printf '%s' "$1" | tr -cd '0-9A-Za-z.~_+-')
+	[ -n "$v" ] && printf '"%s"' "$v" || printf 'null'
+}
+
+service=""
+running=false
+status=$(/usr/libexec/mesh-roaming-status 2>/dev/null)
+if [ -n "$status" ]; then
+	running=true
+	service=$(printf '%s' "$status" | jsonfilter -e '@.version' 2>/dev/null)
+fi
+
+printf '{"packages": {"mesh-roaming": %s, "luci-app-mesh-roaming": %s}, "service": %s, "service_running": %s}\n' \
+	"$(json_str "$(pkg_version mesh-roaming)")" \
+	"$(json_str "$(pkg_version luci-app-mesh-roaming)")" \
+	"$(json_str "$service")" "$running"

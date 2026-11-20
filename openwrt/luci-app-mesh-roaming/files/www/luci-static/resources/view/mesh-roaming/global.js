@@ -1,10 +1,10 @@
 'use strict';
 'require form';
 'require view';
+'require mesh-roaming.common as mrcommon';
 
 // Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-var VERSION = '1.3'; // MESH_ROAMING_VERSION
 
 // Grundeinstellungen des Mesh-Roaming-Dashboards (UCI-Sektion
 // "config global 'main'" in /etc/config/mesh-roaming). Nach dem Speichern
@@ -13,10 +13,14 @@ var VERSION = '1.3'; // MESH_ROAMING_VERSION
 // /usr/libexec/mesh-roaming-uci2json.
 
 return view.extend({
-	render: function () {
+	load: function () {
+		return mrcommon.loadVersions();
+	},
+
+	render: function (versions) {
 		var m, s;
 
-		m = new form.Map('mesh-roaming', 'Mesh Roaming Dashboard ' + VERSION + ' – Grundeinstellungen',
+		m = new form.Map('mesh-roaming', mrcommon.title(versions, 'Grundeinstellungen'),
 			'Diese Werte gelten fuer das gesamte Dashboard. Router und SSID-Farben ' +
 			'werden auf den jeweils eigenen Seiten gepflegt. Nach dem Speichern & ' +
 			'Anwenden wird der Dienst neu geladen.');
@@ -194,6 +198,6 @@ return view.extend({
 		o.default = '0';
 		o.depends({ mqtt_broker: /.+/, mqtt_tls: '1' });
 
-		return m.render();
+		return m.render().then(L.bind(mrcommon.withHints, mrcommon, versions));
 	}
 });

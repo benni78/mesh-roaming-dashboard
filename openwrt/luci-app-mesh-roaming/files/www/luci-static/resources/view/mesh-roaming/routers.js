@@ -4,10 +4,10 @@
 'require ui';
 'require uci';
 'require view';
+'require mesh-roaming.common as mrcommon';
 
 // Copyright Benjamin Johann (mesh-roaming-dashboard)
 // SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
-var VERSION = '1.3'; // MESH_ROAMING_VERSION
 
 // Router-Liste des Mesh-Roaming-Dashboards (UCI-Typ "router" in
 // /etc/config/mesh-roaming). Aufbau wie die Instanz-Liste unter
@@ -44,12 +44,14 @@ return view.extend({
 	load: function () {
 		return Promise.all([
 			uci.load(CONFIG),
-			loadStatus()
+			loadStatus(),
+			mrcommon.loadVersions()
 		]);
 	},
 
 	render: function (data) {
 		var routerStatus = data[1];
+		var versions = data[2];
 		var m, s, o;
 
 		var mapWidth = +uci.get(CONFIG, 'main', 'map_viewbox_width') || 900;
@@ -62,7 +64,7 @@ return view.extend({
 		var savedSections = {};
 		uci.sections(CONFIG, 'router').forEach(function (s) { savedSections[s['.name']] = true; });
 
-		m = new form.Map(CONFIG, 'Mesh Roaming Dashboard ' + VERSION + ' – Router',
+		m = new form.Map(CONFIG, mrcommon.title(versions, 'Router'),
 			'Ein Eintrag (Instanz) je Router. „Dieser Router“ und „Deaktiviert“ lassen ' +
 			'sich direkt in der Liste umschalten, alle weiteren Einstellungen ueber ' +
 			'„Bearbeiten“. Nach dem Speichern & Anwenden wird der Dienst neu geladen.');
@@ -265,6 +267,6 @@ return view.extend({
 		o.modalonly = true;
 		o.datatype = 'ipaddr';
 
-		return m.render();
+		return m.render().then(L.bind(mrcommon.withHints, mrcommon, versions));
 	}
 });

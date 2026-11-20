@@ -310,23 +310,27 @@ def convert_package(ipk_file: str, apk_file: str) -> None:
             c_tar.addfile(info, io.BytesIO(pkginfo_bytes))
 
             # Map install scripts from IPK format to APK format
+            # Local patch 3 (mesh-roaming-dashboard): opkg runs postinst on
+            # install AND upgrade, apk only runs .post-install on a fresh
+            # install and .post-upgrade on an upgrade - so postinst is
+            # mapped to both (as OpenWrt's own package-pack.mk does).
             script_map = {
-                "preinst": ".pre-install",
-                "postinst": ".post-install",
-                "prerm": ".pre-deinstall",
-                "postrm": ".post-deinstall",
+                "preinst": (".pre-install",),
+                "postinst": (".post-install", ".post-upgrade"),
+                "prerm": (".pre-deinstall",),
+                "postrm": (".post-deinstall",),
             }
 
             for item in sorted(os.listdir(control_dir)):
                 if item in script_map:
                     item_path = os.path.join(control_dir, item)
-                    arcname = script_map[item]
-                    info = c_tar.gettarinfo(item_path, arcname)
-                    info.uid = info.gid = 0
-                    info.uname = info.gname = "root"
+                    for arcname in script_map[item]:
+                        info = c_tar.gettarinfo(item_path, arcname)
+                        info.uid = info.gid = 0
+                        info.uname = info.gname = "root"
 
-                    with open(item_path, "rb") as f_in:
-                        c_tar.addfile(info, f_in)
+                        with open(item_path, "rb") as f_in:
+                            c_tar.addfile(info, f_in)
 
             # MAGIC: Capture the exact stream length before EOF null blocks are added by tarfile
             valid_tar_length = c_tar.offset

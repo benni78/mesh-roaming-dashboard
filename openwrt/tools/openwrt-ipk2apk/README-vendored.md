@@ -4,7 +4,7 @@ These two files are vendored from
 [rychly/openwrt-ipk2apk](https://github.com/rychly/openwrt-ipk2apk),
 commit `60caa88a2c5907dc76884b58742304161d6448` (2026-07-10), under the
 MIT License (see [`LICENSE`](LICENSE) in this folder — the original
-project's license, kept alongside the files as required). Two small,
+project's license, kept alongside the files as required). Three small,
 documented local patches were applied — see "Local patches" below.
 
 They are **not part of this project's own PolyForm Noncommercial license**
@@ -90,3 +90,15 @@ The check was changed to read the version number from `apk --version`
 `--help` output. `build-apk.sh`'s own, separate detection logic had the
 same bug and was fixed the same way. Nothing else in either file was
 touched.
+
+### 3. `postinst` also as `.post-upgrade` (openwrt-ipk2apk.py, convert-apk-v2-to-v3.sh)
+
+opkg runs a package's `postinst` both on a fresh install and on an upgrade.
+`apk` distinguishes the two: `.post-install` runs only on a fresh install,
+`.post-upgrade` only on an upgrade. The converter originally mapped
+`postinst` to `.post-install` only, so on OpenWrt 25.12 an `apk add` of a
+newer version never ran `postinst` - for `mesh-roaming` that meant the
+service kept running the **old** code after an upgrade (found while testing
+1.3-r1 -> 1.4-r1, see issue #9). `postinst` is now added under both names
+(as OpenWrt's own `include/package-pack.mk` does), and the v2 -> v3 step
+carries `post-upgrade` over as well. Nothing else was changed.

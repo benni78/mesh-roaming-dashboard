@@ -53,7 +53,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "1.3"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
+__version__ = "1.4"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -1036,6 +1036,10 @@ class MeshState:
                 rr = self.routers.get(rid) or {}
                 router_status[rid] = rr["error"] if "error" in rr else "ok"
             return {
+                # Version des laufenden Dienstes - luci-app-mesh-roaming
+                # vergleicht sie mit dem installierten Paket und weist auf
+                # einen fehlenden Neustart nach einem Upgrade hin (#9).
+                "version": __version__,
                 "generatedAt": int(max(self.generated_at.values()) * 1000) if self.generated_at else 0,
                 "routerStatus": router_status,
             }

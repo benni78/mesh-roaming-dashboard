@@ -5,7 +5,8 @@
 			"uci": [ "mesh-roaming" ],
 			"file": {
 				"/etc/config/mesh-roaming": [ "read" ],
-				"/usr/libexec/mesh-roaming-status": [ "exec" ]
+				"/usr/libexec/mesh-roaming-status": [ "exec" ],
+				"/usr/libexec/mesh-roaming-version": [ "exec" ]
 			},
 			"init": [ "mesh-roaming" ]
 		},
