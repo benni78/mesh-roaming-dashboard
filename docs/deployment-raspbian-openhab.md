@@ -160,7 +160,8 @@ der Neustart fehlt. Änderungen je Version: [`CHANGELOG.md`](../CHANGELOG.md).
   Rauschen (und bei Messpunkten Signal/SNR) mit Bewertung gut/mittel/
   schlecht. Funktioniert auch mit Client-Interfaces (Messpunkte).
 - Nachbarkanäle aus dem WLAN-Scan der Router: je ein Diagramm für 2,4 und
-  5 GHz mit eigener/fremder Belegung und Kanalempfehlung (Einstellungen in
+  5 GHz mit Spektrum (Netznamen über ihrer belegten Bandbreite),
+  eigener/fremder Belegung und Kanalempfehlung (Einstellungen in
   der `config.json` unter `scan`, siehe README).
 - Mit MQTT zusätzlich die Auslastungswerte je Router und Band, z. B. für
   openHAB → InfluxDB → Grafana (Topics: README, Abschnitt „MQTT-Topics“).

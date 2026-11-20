@@ -291,6 +291,14 @@ for `scan.max_age_sec` are dropped. The live page shows two bar charts,
 - **Recommendation**: channel with the least use by foreign networks
   (2.4 GHz: 1, 6 or 11; 5 GHz: 80 MHz block, non-DFS preferred).
 
+Above each bar chart there is a **spectrum** (since 2.1): every network as
+an area over its occupied bandwidth (20/40/80/160 MHz), height = signal
+strength, with the **network name** above it. Own networks (★) bold in cool
+colours, foreign ones faint in warm colours; the colour is tied to the
+SSID. Names are placed without overlap (own first, then the strongest
+foreign ones); whatever finds no room is in the tooltip. The channel axis
+is the same as in the bar chart below.
+
 Same logic as the WLAN Analyzer (Windows). **Active scanning** depends on
 `scan.trigger` (LuCI: Grundeinstellungen → WLAN-Scan):
 
@@ -303,8 +311,8 @@ Same logic as the WLAN Analyzer (Windows). **Active scanning** depends on
 A router that is only an access point usually reports no networks with
 `clients`; use a measuring point or choose `all`. SSIDs of foreign networks
 are identifiers broadcast publicly by access points, not device data; they
-are not stored, only kept in memory, and the page shows only SSID and
-signal (no BSSIDs).
+are not stored, only kept in memory. The page shows SSID, signal and
+channel (clearly visible in the spectrum), but no BSSIDs.
 
 ### MQTT topics
 
@@ -377,24 +385,24 @@ the current version (architecture `all`, run on any target):
 
 | File | for |
 |---|---|
-| `mesh-roaming_2.0-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_2.0-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_2.0-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_2.0-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
+| `mesh-roaming_2.1-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_2.1-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_2.1-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_2.1-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
 
 ```sh
 # on the PC: copy the packages to the router (-O: Dropbear has no SFTP)
-scp -O packages/*_2.0-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_2.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # on the router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: packages intact?
 apk update
-apk add --allow-untrusted ./mesh-roaming_2.0-r1_all.apk ./luci-app-mesh-roaming_2.0-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_2.1-r1_all.apk ./luci-app-mesh-roaming_2.1-r1_all.apk
 
 # or on the router (opkg, up to OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_2.0-r1_all.ipk ./luci-app-mesh-roaming_2.0-r1_all.ipk
+opkg install ./mesh-roaming_2.1-r1_all.ipk ./luci-app-mesh-roaming_2.1-r1_all.ipk
 ```
 
 The package manager fetches the dependencies (`python3`, `python3-sqlite3`,
@@ -498,9 +506,9 @@ own [third-party notices](tools/WlanAnalyzer/THIRD-PARTY-NOTICES.md).
 
 | Program | Version | Shown in |
 |---|---|---|
-| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 2.0 | `--version`, live page header, LuCI page title, `/config.json` |
-| Raspberry Pi variant (`src/`, `systemd/`) | 2.0 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
-| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 2.0-r1 | `apk info -v` or `opkg list-installed` |
+| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 2.1 | `--version`, live page header, LuCI page title, `/config.json` |
+| Raspberry Pi variant (`src/`, `systemd/`) | 2.1 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
+| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 2.1-r1 | `apk info -v` or `opkg list-installed` |
 | WLAN Analyzer | 1.1.1 | title bar, *Info*, `--version`, EXE file properties |
 
 Changes per version: [`CHANGELOG.md`](CHANGELOG.md). All version strings of

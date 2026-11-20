@@ -8,7 +8,7 @@
 # Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
-VERSION=2.0 # MESH_ROAMING_VERSION
+VERSION=2.1 # MESH_ROAMING_VERSION
 if [ "$1" = "--version" ]; then
 	echo "mesh-roaming-status (mesh-roaming-dashboard) $VERSION"
 	exit 0

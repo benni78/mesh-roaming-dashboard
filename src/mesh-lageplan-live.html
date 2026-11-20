@@ -213,6 +213,8 @@
   .scan-chart-head b{font-family:var(--font-display);font-size:12.5px;color:var(--text-primary);font-weight:600;}
   .scan-rec{color:var(--text-secondary);}
   .scan-chart svg{width:100%;height:auto;display:block;}
+  .scan-caption{font-size:10px;color:var(--text-muted);margin:8px 0 2px;}
+  .scan-spec-net{cursor:help;}
   .scan-chart .scan-hit{fill:transparent;}
   .scan-chart .scan-hit:hover{fill:rgba(255,255,255,0.05);}
   .scan-empty{font-size:11px;color:var(--text-muted);font-style:italic;padding:10px 0;}
@@ -1205,6 +1207,119 @@
     return lines.join('\n');
   }
 
+  // ---- Spektrum je Band mit Netznamen (#14) ---------------------------------
+  // Wie "Spektrum" im WlanAnalyzer (UI/SpectrumChart.cs): jedes Netz als
+  // Trapez ueber seiner belegten Bandbreite, Hoehe = Signalstaerke. Eigene
+  // Netze kraeftig in kuehlen Farben mit Stern, fremde blass in warmen. Die
+  // Farbe haengt fest an der SSID (FNV-1a wie im Analyzer). Die x-Achse
+  // nutzt dieselben Kanalpositionen wie das Balkendiagramm darunter.
+  var SPEC_OWN = ['#2ec4b6', '#4ea8de', '#80ed99', '#48cae4', '#90be6d'];
+  var SPEC_FOREIGN = ['#f4a261', '#e76f51', '#e9c46a', '#f28482', '#b388eb', '#d4a373', '#ff99c8', '#adb5bd'];
+  var SPEC_MIN = -100, SPEC_MAX = -20, SPEC_TOP = 6, SPEC_PLOT_H = 190;
+
+  function specColor(ssid, own){
+    var h = 2166136261;
+    var s = ssid || '';
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    var pal = own ? SPEC_OWN : SPEC_FOREIGN;
+    return pal[h % pal.length];
+  }
+
+  // Frequenz -> x, abschnittsweise linear zwischen den Kanalmitten des
+  // Balkendiagramms (5 GHz: die Luecke 64-100 wird so nicht breit gezogen)
+  function specX(rows, f){
+    var n = rows.length;
+    var cx = function(i){ return SCAN_LEFT + i * SCAN_STEP + SCAN_STEP / 2; };
+    var seg = function(i){ return (cx(i+1) - cx(i)) / (rows[i+1].freq_mhz - rows[i].freq_mhz); };
+    if (f <= rows[0].freq_mhz) return cx(0) - (rows[0].freq_mhz - f) * seg(0);
+    for (var i = 0; i < n - 1; i++) {
+      if (f <= rows[i+1].freq_mhz) return cx(i) + (f - rows[i].freq_mhz) * seg(i);
+    }
+    return cx(n-1) + (f - rows[n-1].freq_mhz) * seg(n-2);
+  }
+
+  function renderScanSpectrum(band, data){
+    var rows = data.channels, nets = data.networks || [];
+    var W = SCAN_LEFT + rows.length * SCAN_STEP + 4, base = SPEC_TOP + SPEC_PLOT_H, H = base + 4;
+    var xMin = SCAN_LEFT, xMax = W - 4;
+    var y = function(dbm){ return base - (Math.max(SPEC_MIN, Math.min(SPEC_MAX, dbm)) - SPEC_MIN) / (SPEC_MAX - SPEC_MIN) * SPEC_PLOT_H; };
+    var clampX = function(x){ return Math.max(xMin, Math.min(xMax, x)); };
+    var svg = ['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Spektrum '+band+'">'];
+    var dfs = rows.filter(function(r){ return r.dfs; });
+    if (dfs.length) {
+      var d0 = specX(rows, dfs[0].freq_mhz) - SCAN_STEP / 2, d1 = specX(rows, dfs[dfs.length-1].freq_mhz) + SCAN_STEP / 2;
+      svg.push('<rect x="'+d0+'" y="'+SPEC_TOP+'" width="'+(d1-d0)+'" height="'+SPEC_PLOT_H+'" fill="#ffffff" fill-opacity="0.025"></rect>');
+      svg.push('<text x="'+(d0+4)+'" y="'+(SPEC_TOP+11)+'" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">DFS</text>');
+    }
+    for (var d = SPEC_MIN; d <= SPEC_MAX; d += 10) {
+      var yy = y(d);
+      svg.push('<line x1="'+xMin+'" x2="'+xMax+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--panel-border)" stroke-width="'+(d === SPEC_MIN ? 1 : 0.5)+'"></line>');
+      if (d % 20 === 0) svg.push('<text x="'+(SCAN_LEFT-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">'+d+'</text>');
+    }
+    if (!nets.length) {
+      svg.push('</svg>');
+      return svg.join('');
+    }
+    // Zeichenreihenfolge: fremde zuerst, eigene oben drueber, je schwach -> stark
+    var drawOrder = nets.slice().sort(function(a, b){ return (a.own - b.own) || (a.signal - b.signal); });
+    var geo = function(n){
+      var x1 = clampX(specX(rows, n.lo_mhz)), x2 = clampX(specX(rows, n.hi_mhz));
+      return { x1:x1, x2:x2, top:y(n.signal), slope: Math.min((x2 - x1) * 0.18, 10) };
+    };
+    svg.push('<g clip-path="none">');
+    drawOrder.forEach(function(n){
+      var g = geo(n), c = specColor(n.ssid, n.own);
+      var pts = g.x1+','+base+' '+(g.x1+g.slope)+','+g.top+' '+(g.x2-g.slope)+','+g.top+' '+g.x2+','+base;
+      var tip = (n.own ? '★ eigenes Netz: ' : 'Fremdes Netz: ')+(n.ssid || '(versteckt)')+'\n'+
+        n.signal+' dBm · Kanal '+n.primary+' · '+(n.hi_mhz - n.lo_mhz)+' MHz ('+n.lo_mhz+'–'+n.hi_mhz+' MHz)';
+      svg.push('<polygon class="scan-spec-net" points="'+pts+'" fill="'+c+'" fill-opacity="'+(n.own ? 0.3 : 0.1)+'" '+
+        'stroke="'+c+'" stroke-opacity="'+(n.own ? 1 : 0.65)+'" stroke-width="'+(n.own ? 2 : 1)+'" stroke-linejoin="round">'+
+        '<title>'+escapeHtml(tip)+'</title></polygon>');
+    });
+    svg.push('</g>');
+    // Namen nach Wichtigkeit (eigene, dann staerkste fremde) ohne Ueberlappung
+    // setzen; fremde ohne freien Platz bleiben unbeschriftet. Dieselbe SSID auf
+    // demselben Kanal (mehrere APs) nur einmal.
+    var placed = [], seen = {};
+    var labelOrder = nets.slice().sort(function(a, b){ return (b.own - a.own) || (b.signal - a.signal); });
+    var LINE = 13;
+    labelOrder.forEach(function(n){
+      var key = (n.ssid || '')+'|'+(n.lo_mhz + n.hi_mhz);
+      if (seen[key]) return;
+      seen[key] = true;
+      var text = (n.own ? '★ ' : '')+(n.ssid || '(versteckt)');
+      var w = text.length * (n.own ? 6.6 : 6.0) + 4;
+      var g = geo(n);
+      var cx = (g.x1 + g.x2) / 2;
+      var rx = Math.max(xMin, Math.min(xMax - w, cx - w / 2));
+      var ry = g.top - LINE - 1, free = false;
+      for (var tries = 0; tries < 6; tries++) {
+        if (ry >= SPEC_TOP && !placed.some(function(r){ return rx < r.x + r.w && r.x < rx + w && ry < r.y + LINE && r.y < ry + LINE; })) {
+          free = true; break;
+        }
+        ry -= LINE;
+      }
+      if (!free) {
+        // sonst in die eigene Flaeche (unter die Oberkante) schreiben -
+        // eigene Netze immer, fremde nur, wenn dort Platz ist
+        ry = g.top + 2;
+        for (var down = 0; down < 40 && !free; down++) {
+          if (ry + LINE <= base && !placed.some(function(r){ return rx < r.x + r.w && r.x < rx + w && ry < r.y + LINE && r.y < ry + LINE; })) free = true;
+          else ry += LINE;
+        }
+        if (!free) {
+          if (!n.own) return;
+          ry = g.top + 2;
+        }
+      }
+      placed.push({ x:rx, y:ry, w:w });
+      svg.push('<text x="'+(rx + 2)+'" y="'+(ry + LINE - 3)+'" font-size="'+(n.own ? 11 : 10.5)+'" '+
+        (n.own ? 'font-weight="700" ' : 'fill-opacity="0.9" ')+'fill="'+specColor(n.ssid, n.own)+'">'+escapeHtml(text)+'</text>');
+    });
+    svg.push('</svg>');
+    return svg.join('');
+  }
+
   function renderScanBand(el, band, label, data){
     if (!el) return;
     var head = '<div class="scan-chart-head"><span><b>'+label+'</b>';
@@ -1263,7 +1378,11 @@
     });
     svg.push('<text x="'+(W-4)+'" y="'+(H-2)+'" text-anchor="end" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">▬ Empfehlung</text>');
     svg.push('</svg>');
-    el.innerHTML = head + svg.join('');
+    el.innerHTML = head +
+      '<div class="scan-caption">Spektrum: Signalstärke (dBm) und belegte Bandbreite je Netz · ★ = eigenes Netz</div>' +
+      renderScanSpectrum(band, data) +
+      '<div class="scan-caption">Kanalbelegung: eigene und fremde Netze je 20-MHz-Kanal</div>' +
+      svg.join('');
     // gleicher Massstab fuer beide Baender: 2,4 GHz (13 Kanaele) schmaler
     el.style.maxWidth = Math.max(45, Math.round(W / (SCAN_LEFT + 25 * SCAN_STEP + 4) * 100)) + '%';
   }
@@ -1296,6 +1415,9 @@
       '<b>Geschätzt</b> (schraffiert): Meldet kein AP diesen Wert, ergibt sich ein Belegungsindex aus Anzahl '+
       'und Signalstärke der Netze, die den Kanal überlappen – ein Anhaltspunkt, keine Messung. '+
       'Zahl über dem Balken = Anzahl der Netze. Fett = Kanal mit eigenen Netzen. '+
+      '<b>Spektrum</b>: jedes Netz als Fläche über seiner belegten Bandbreite, Höhe = Signalstärke; '+
+      'eigene Netze (★) kräftig in kühlen Farben, fremde blass in warmen. Fremde Netze ohne Platz für '+
+      'den Namen bleiben unbeschriftet (Name im Tooltip). '+
       '<b>Empfehlung</b>: geringste Belegung durch fremde Netze (2,4 GHz: Kanal 1, 6 oder 11; 5 GHz: 80-MHz-Block, ohne DFS bevorzugt).';
   }
 
@@ -1385,7 +1507,7 @@
   }
 
   // ---- Version ------------------------------------------------------------
-  var APP_VERSION = '2.0'; // MESH_ROAMING_VERSION
+  var APP_VERSION = '2.1'; // MESH_ROAMING_VERSION
   function showVersion(serverVersion){
     var el = document.getElementById('appVersion');
     var text = 'Version ' + APP_VERSION;

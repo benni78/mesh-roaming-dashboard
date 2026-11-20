@@ -14,12 +14,12 @@
 # Quelle: opkg (/usr/lib/opkg/info/<paket>.control, bis OpenWrt 24.10) oder
 # apk (/lib/apk/db/installed, ab 25.12).
 #
-# Version 2.0 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
+# Version 2.1 (MESH_ROAMING_VERSION) - Teil von mesh-roaming-dashboard
 # Copyright Benjamin Johann (mesh-roaming-dashboard)
 # SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 
 if [ "$1" = "--version" ]; then
-	echo "mesh-roaming-version (mesh-roaming-dashboard) 2.0"
+	echo "mesh-roaming-version (mesh-roaming-dashboard) 2.1"
 	exit 0
 fi
 

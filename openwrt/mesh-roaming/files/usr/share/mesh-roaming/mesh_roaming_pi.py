@@ -53,7 +53,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "2.0"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
+__version__ = "2.1"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -826,6 +826,9 @@ SCAN_CHANNELS = {
 }
 
 
+SCAN_SPECTRUM_MAX = 80   # Netze je Band in der Spektrum-Uebersicht (#14)
+
+
 def scan_signal_weight(rssi):
     return min(1.0, max(0.05, (rssi + 95) / 45.0))
 
@@ -882,10 +885,18 @@ def analyze_scan(nets, is_own):
                 "networks": [{"ssid": n["ssid"], "signal": n["signal"], "own": is_own(n),
                               "primary": channel_for_freq(n["freq"])} for n, _, _ in top],
             })
+        # Fuer die Spektrum-Uebersicht (#14): jedes Netz mit belegtem
+        # Frequenzbereich - ohne BSSID, staerkste zuerst, begrenzt
+        spectrum = []
+        for n in sorted(band_nets, key=lambda n: -n["signal"])[:SCAN_SPECTRUM_MAX]:
+            lo, hi = net_span(n)
+            spectrum.append({"ssid": n["ssid"], "signal": n["signal"], "own": is_own(n),
+                             "lo_mhz": lo, "hi_mhz": hi, "primary": channel_for_freq(n["freq"])})
         out[band] = {
             "channels": rows,
             "recommendation": scan_recommendation(band, rows),
             "network_count": len(band_nets),
+            "networks": spectrum,
         }
     return out
 

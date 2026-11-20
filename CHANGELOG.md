@@ -2,6 +2,19 @@
 
 ## Mesh Roaming Dashboard
 
+### 2.1 (Pakete 2.1-r1)
+
+- **Spektrum mit Netznamen** (Issue #14): Über den Balkendiagrammen der
+  Nachbarkanäle je ein Spektrum für 2,4 und 5 GHz wie im WLAN-Analyzer:
+  jedes Netz als Fläche über seiner belegten Bandbreite, Höhe =
+  Signalstärke, Netzname darüber; eigene Netze (★) kräftig in kühlen,
+  fremde blass in warmen Farben, Farbe fest je SSID. Namen ohne
+  Überlappung nach Wichtigkeit; wer über der Fläche keinen Platz findet,
+  wird – anders als im Analyzer – auch in der eigenen Fläche beschriftet.
+  Gleiche Kanalachse wie das Balkendiagramm.
+- `data.json`: `scan.bands.<band>.networks` (SSID, Signal, Frequenzbereich,
+  Primärkanal, eigen/fremd; keine BSSIDs).
+
 ### 2.0 (Pakete 2.0-r1)
 
 - **Nachbarkanäle aus dem WLAN-Scan** (Issue #13): Die Router werten

@@ -302,6 +302,14 @@ Live-Seite zeigt daraus zwei Balkendiagramme, 2,4 und 5 GHz, ohne Verlauf:
 - **Empfehlung**: Kanal mit der geringsten Belegung durch fremde Netze
   (2,4 GHz: 1, 6 oder 11; 5 GHz: 80-MHz-Block, ohne DFS bevorzugt).
 
+Über jedem Balkendiagramm steht ein **Spektrum** (ab 2.1): jedes Netz als
+Fläche über seiner belegten Bandbreite (20/40/80/160 MHz), Höhe =
+Signalstärke, mit dem **Netznamen** darüber. Eigene Netze (★) kräftig in
+kühlen Farben, fremde blass in warmen; die Farbe hängt fest an der SSID.
+Die Namen werden ohne Überlappung gesetzt (eigene zuerst, dann die
+stärksten fremden); was keinen Platz findet, steht im Tooltip. Die
+Kanalachse ist dieselbe wie im Balkendiagramm darunter.
+
 Gleiche Logik wie im WLAN-Analyzer (Windows). **Aktiv gescannt** wird je nach
 `scan.trigger` (LuCI: Grundeinstellungen → WLAN-Scan):
 
@@ -314,8 +322,9 @@ Gleiche Logik wie im WLAN-Analyzer (Windows). **Aktiv gescannt** wird je nach
 Ein Router, der nur Access Point ist, liefert mit `clients` meist keine
 Netze; dafür einen Messpunkt nutzen oder `all` wählen. SSIDs fremder Netze
 sind öffentlich ausgesendete Kennungen von Access Points, keine Gerätedaten;
-sie werden nicht gespeichert, nur im Arbeitsspeicher gehalten, und auf der
-Seite erscheinen nur SSID und Signal (keine BSSIDs).
+sie werden nicht gespeichert, nur im Arbeitsspeicher gehalten. Auf der
+Seite erscheinen SSID, Signal und Kanal (im Spektrum gut sichtbar), aber
+keine BSSIDs.
 
 ### MQTT-Topics
 
@@ -388,24 +397,24 @@ aktuellen Version (Architektur `all`, laufen auf jedem Target):
 
 | Datei | für |
 |---|---|
-| `mesh-roaming_2.0-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_2.0-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_2.0-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_2.0-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
+| `mesh-roaming_2.1-r1_all.apk` | Dienst, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_2.1-r1_all.apk` | LuCI-Oberfläche, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_2.1-r1_all.ipk` | Dienst, OpenWrt bis 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_2.1-r1_all.ipk` | LuCI-Oberfläche, OpenWrt bis 24.10 (`opkg`) |
 
 ```sh
 # auf dem PC: Pakete auf den Router kopieren (-O: Dropbear hat kein SFTP)
-scp -O packages/*_2.0-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_2.1-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # auf dem Router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: Pakete unbeschädigt?
 apk update
-apk add --allow-untrusted ./mesh-roaming_2.0-r1_all.apk ./luci-app-mesh-roaming_2.0-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_2.1-r1_all.apk ./luci-app-mesh-roaming_2.1-r1_all.apk
 
 # bzw. auf dem Router (opkg, bis OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_2.0-r1_all.ipk ./luci-app-mesh-roaming_2.0-r1_all.ipk
+opkg install ./mesh-roaming_2.1-r1_all.ipk ./luci-app-mesh-roaming_2.1-r1_all.ipk
 ```
 
 Abhängigkeiten (`python3`, `python3-sqlite3`, `openssh-client-utils`,
@@ -511,9 +520,9 @@ PolyForm Noncommercial) und eigenen
 
 | Programm | Version | Anzeige |
 |---|---|---|
-| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 2.0 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
-| Raspberry-Pi-Variante (`src/`, `systemd/`) | 2.0 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
-| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 2.0-r1 | `apk info -v` bzw. `opkg list-installed` |
+| Dienst `mesh_roaming_pi.py`, Live-Seite, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI-Seiten, systemd-Unit, Build-Skripte | 2.1 | `--version`, Kopfzeile der Live-Seite, Seitentitel in LuCI, `/config.json` |
+| Raspberry-Pi-Variante (`src/`, `systemd/`) | 2.1 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, Kopfzeile der Live-Seite |
+| OpenWrt-Pakete `mesh-roaming`, `luci-app-mesh-roaming` | 2.1-r1 | `apk info -v` bzw. `opkg list-installed` |
 | WLAN-Analyzer | 1.1.1 | Titelleiste, *Info*, `--version`, Dateieigenschaften der EXE |
 
 Änderungen je Version: [`CHANGELOG.md`](CHANGELOG.md). Alle Versionsangaben
