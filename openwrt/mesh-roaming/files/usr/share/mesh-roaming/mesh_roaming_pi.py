@@ -53,7 +53,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "1.4"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
+__version__ = "2.0"  # MESH_ROAMING_VERSION - bei Release mit control/Version abgleichen
 
 import errno
 import json
@@ -171,6 +171,18 @@ DEFAULT_CONFIG = {
             "rest": "#2f3d46",
         },
     },
+    # WLAN-Scan der Nachbarkanaele (#13): alle 'interval_sec' Sekunden je
+    # Router "iw scan dump" (0 = aus); 'trigger' = wo aktiv gescannt wird
+    # (off/clients/all, s. build_scan_cmd); 'own_ssids' = zusaetzlich als
+    # eigen geltende SSIDs (die SSIDs/BSSIDs der eigenen AP-Interfaces werden
+    # automatisch erkannt); Netze, die laenger als 'max_age_sec' nicht mehr
+    # gesehen wurden, fallen heraus.
+    "scan": {
+        "interval_sec": 60,
+        "trigger": "clients",
+        "own_ssids": [],
+        "max_age_sec": 300,
+    },
     "routers": [],
     # Benutzername/Passwort und TLS sind optional - leer/None = anonym bzw.
     # unverschluesselt. "port": None = Standardport (1883, mit TLS 8883).
@@ -269,6 +281,10 @@ ROUTERS = {}          # id -> {ip, name, room, map_x, map_y, mgmt_ips, role}
 AP_IFNAMES = []
 UTIL_WINDOW_SEC = 10.0
 REMOTE_CMDS = {}      # Rolle -> Befehlszeile (s. build_remote_cmd)
+SCAN_INTERVAL_SEC = 60.0
+SCAN_CMD = ""         # s. build_scan_cmd
+SCAN_OWN_SSIDS = set()
+SCAN_MAX_AGE_SEC = 300.0
 SSH_USER = "root"
 SSH_KEY = ""
 SSH_CONNECT_TIMEOUT = 5
@@ -644,6 +660,253 @@ def convert_router_output(lines):
     return router_result, names, ips, survey
 
 
+# ---- WLAN-Scan: Auslastung der Nachbarkanaele (#13) ----------------------
+#
+# Zyklisch je Router: "iw dev <if> scan dump" (zuletzt gefundene Netze) auf
+# einem Interface je Funkkarte (bevorzugt Client, sonst AP), vorher je nach
+# Einstellung "scan trigger" fuer den naechsten Durchlauf (asynchron - die
+# Ergebnisse kommen beim naechsten Dump an):
+#   off     - nie aktiv scannen, nur vorhandene Ergebnisse auswerten
+#   clients - nur auf Client-Interfaces (Messpunkte); dort scannt
+#             wpa_supplicant ohnehin, die Verbindung bleibt praktisch ungestoert
+#   all     - zusaetzlich auf AP-Interfaces ("ap-force"); die Funkkarte
+#             verlaesst dafuer kurz ihren Kanal (kurze Pause fuer die Clients)
+# Ausserdem meldet jeder Router die BSSID/SSID seiner eigenen AP-Interfaces
+# ("OWNAP"), damit eigene und fremde Netze automatisch unterschieden werden.
+# Ausgegeben werden nur die fuer die Auswertung noetigen Zeilen.
+SCAN_GREP = ("^BSS |freq:|signal:|last seen:|SSID:|DS Parameter set|operation:|"
+             "primary channel|secondary channel offset|channel width|"
+             "center freq segment|station count|channel utili")
+
+
+def build_scan_cmd(trigger="clients"):
+    pick = (
+        "iw dev 2>/dev/null | awk '"
+        "/^phy#/{p=\"phy\" substr($1,5)} "
+        "$1==\"Interface\"{i=$2} "
+        "$1==\"type\"{t=$2; "
+        "if(t==\"managed\" && !(p in man)){man[p]=1; best[p]=i\" \"t} "
+        "else if(t==\"AP\" && !(p in best)){best[p]=i\" \"t}} "
+        "END{for(p in best) print p, best[p]}'"
+    )
+    trig = {
+        "off": ":",
+        "clients": "[ \"$t\" = managed ] && iw dev \"$i\" scan trigger >/dev/null 2>&1",
+        "all": "if [ \"$t\" = managed ]; then iw dev \"$i\" scan trigger >/dev/null 2>&1; "
+               "else iw dev \"$i\" scan trigger ap-force >/dev/null 2>&1; fi",
+    }.get(trigger, ":")
+    own = (
+        "iw dev 2>/dev/null | awk '"
+        "$1==\"addr\"{a=$2} "
+        "$1==\"ssid\"{s=substr($0, index($0, \"ssid \")+5)} "
+        "$1==\"Interface\"{a=\"\"; s=\"\"} "
+        "$1==\"type\" && $2==\"AP\"{print \"OWNAP \" a \" \" s}'"
+    )
+    return "; ".join([
+        "echo ===SCAN-OWN===",
+        own,
+        pick + " | while read p i t; do " + trig + "; "
+        "echo \"===SCAN $p $i $t===\"; "
+        "iw dev \"$i\" scan dump 2>/dev/null | grep -E '" + SCAN_GREP + "'; done",
+        "echo ===DONE===",
+    ])
+
+
+_SCAN_BSS_RE = re.compile(r"^BSS ([0-9a-fA-F:]{17})")
+_SCAN_FREQ_RE = re.compile(r"^freq:\s*([0-9]+)")
+_SCAN_SIGNAL_RE = re.compile(r"^signal:\s*(-?[0-9]+)")
+_SCAN_SEEN_RE = re.compile(r"^last seen:\s*([0-9]+)\s*ms")
+_SCAN_DS_RE = re.compile(r"DS Parameter set: channel ([0-9]+)")
+_SCAN_OFFSET_RE = re.compile(r"secondary channel offset:\s*(\S+)")
+_SCAN_WIDTH_RE = re.compile(r"\* channel width:\s*([0-9]+)")
+_SCAN_SEG1_RE = re.compile(r"center freq segment 1:\s*([0-9]+)")
+_SCAN_SEG2_RE = re.compile(r"center freq segment 2:\s*([0-9]+)")
+_SCAN_STACOUNT_RE = re.compile(r"station count:\s*([0-9]+)")
+_SCAN_UTIL_RE = re.compile(r"channel utili[sz]ation:\s*([0-9]+)/255")
+
+
+def parse_scan_output(lines):
+    """-> (liste der Netze, {bssid: ssid} der eigenen AP-Interfaces).
+    Netz: {bssid, freq, signal, ssid, last_seen_ms, offset, vht_width,
+    seg1, seg2, sta_count, util_pct}."""
+    nets = []
+    own = {}
+    cur = None
+    block = None   # aktueller Operation-Block ("HT", "VHT", "HE", ...)
+    for raw in lines:
+        s = raw.strip()
+        if s.startswith("OWNAP "):
+            parts = s.split(" ", 2)
+            if len(parts) >= 2 and len(parts[1]) == 17:
+                own[parts[1].lower()] = parts[2] if len(parts) > 2 else ""
+            continue
+        if s.startswith("==="):
+            cur = None
+            continue
+        m = _SCAN_BSS_RE.match(s)
+        if m:
+            cur = {"bssid": m.group(1).lower(), "freq": None, "signal": None, "ssid": "",
+                   "last_seen_ms": 0, "offset": None, "vht_width": None, "seg1": 0, "seg2": 0,
+                   "sta_count": None, "util_pct": None}
+            nets.append(cur)
+            block = None
+            continue
+        if cur is None:
+            continue
+        if s.endswith("operation:"):
+            block = s.split()[0]
+            continue
+        m = _SCAN_FREQ_RE.match(s)
+        if m:
+            cur["freq"] = int(m.group(1))
+            continue
+        m = _SCAN_SIGNAL_RE.match(s)
+        if m:
+            cur["signal"] = int(m.group(1))
+            continue
+        m = _SCAN_SEEN_RE.match(s)
+        if m:
+            cur["last_seen_ms"] = int(m.group(1))
+            continue
+        if s.startswith("SSID:"):
+            cur["ssid"] = s[5:].strip()
+            continue
+        m = _SCAN_OFFSET_RE.search(s)
+        if m:
+            cur["offset"] = m.group(1)
+            continue
+        if block == "VHT":
+            m = _SCAN_WIDTH_RE.search(s)
+            if m:
+                cur["vht_width"] = int(m.group(1))
+                continue
+            m = _SCAN_SEG1_RE.search(s)
+            if m:
+                cur["seg1"] = int(m.group(1))
+                continue
+            m = _SCAN_SEG2_RE.search(s)
+            if m:
+                cur["seg2"] = int(m.group(1))
+                continue
+        m = _SCAN_STACOUNT_RE.search(s)
+        if m:
+            cur["sta_count"] = int(m.group(1))
+            continue
+        m = _SCAN_UTIL_RE.search(s)
+        if m:
+            cur["util_pct"] = round(int(m.group(1)) / 255 * 100, 1)
+    return [n for n in nets if n["freq"] and n["signal"] is not None], own
+
+
+def net_span(n):
+    """Vom Netz belegter Frequenzbereich (lo, hi) in MHz."""
+    f = n["freq"]
+    lo, hi = f - 10, f + 10
+    if n.get("offset") == "above":
+        hi = f + 30
+    elif n.get("offset") == "below":
+        lo = f - 30
+    w, s1, s2 = n.get("vht_width"), n.get("seg1") or 0, n.get("seg2") or 0
+    if 5000 < f < 5925 and w and s1:
+        c1 = 5000 + 5 * s1
+        if w == 1 and s2 and abs(s2 - s1) == 8:
+            c2 = 5000 + 5 * s2       # 160 MHz (neue Signalisierung)
+            lo, hi = c2 - 80, c2 + 80
+        elif w == 2:
+            lo, hi = c1 - 80, c1 + 80  # 160 MHz (alte Signalisierung)
+        else:
+            lo, hi = c1 - 40, c1 + 40  # 80 MHz (bzw. 80+80: erster Block)
+    return lo, hi
+
+
+SCAN_CHANNELS = {
+    "2g": [(ch, 2407 + 5 * ch) for ch in range(1, 14)],
+    "5g": [(ch, 5000 + 5 * ch) for ch in
+           list(range(36, 65, 4)) + list(range(100, 145, 4)) + list(range(149, 166, 4))],
+}
+
+
+def scan_signal_weight(rssi):
+    return min(1.0, max(0.05, (rssi + 95) / 45.0))
+
+
+def analyze_scan(nets, is_own):
+    """Belegung je 20-MHz-Kanal und Band, aufgeteilt eigen/fremd -
+    gleiche Logik wie tools/WlanAnalyzer (Analysis/ChannelAnalysis.cs)."""
+    out = {}
+    for band, channels in SCAN_CHANNELS.items():
+        band_nets = [n for n in nets if band_for_freq(n["freq"]) == band]
+        rows = []
+        for ch, f in channels:
+            overlapping = []
+            for n in band_nets:
+                lo, hi = net_span(n)
+                if lo < f + 10 and hi > f - 10:
+                    overlapping.append((n, lo, hi))
+            own_w = foreign_w = 0.0
+            own_sta = foreign_sta = own_cnt = foreign_cnt = 0
+            measured = None
+            for n, lo, hi in overlapping:
+                own = is_own(n)
+                w = scan_signal_weight(n["signal"])
+                if own:
+                    own_w += w
+                    own_cnt += 1
+                    own_sta += n.get("sta_count") or 0
+                else:
+                    foreign_w += w
+                    foreign_cnt += 1
+                    foreign_sta += n.get("sta_count") or 0
+                if n.get("util_pct") is not None and lo <= f <= hi:
+                    measured = max(measured or 0.0, n["util_pct"])
+            estimated = min(100.0, (own_w + foreign_w) * 20.0)
+            # Geraeteanzahl nur, wenn ALLE beteiligten Netze sie melden - sonst
+            # zaehlte ein fremdes Netz ohne BSS Load wie "0 Geraete" (anders
+            # als WlanAnalyzer, dort fuehrt das zu "fremd 0 %")
+            all_counts = all(n.get("sta_count") is not None for n, _, _ in overlapping)
+            if measured is not None and all_counts and own_sta + foreign_sta > 0:
+                share = own_sta / (own_sta + foreign_sta)
+            elif own_w + foreign_w > 0:
+                share = own_w / (own_w + foreign_w)
+            else:
+                share = 0.0
+            total = measured if measured is not None else estimated
+            top = sorted(overlapping, key=lambda x: -x[0]["signal"])[:6]
+            rows.append({
+                "channel": ch, "freq_mhz": f,
+                "dfs": band == "5g" and 52 <= ch <= 144,
+                "measured_pct": measured, "estimated_pct": round(estimated, 1),
+                "total_pct": round(total, 1),
+                "own_pct": round(total * share, 1), "foreign_pct": round(total * (1 - share), 1),
+                "own_count": own_cnt, "foreign_count": foreign_cnt,
+                "networks": [{"ssid": n["ssid"], "signal": n["signal"], "own": is_own(n),
+                              "primary": channel_for_freq(n["freq"])} for n, _, _ in top],
+            })
+        out[band] = {
+            "channels": rows,
+            "recommendation": scan_recommendation(band, rows),
+            "network_count": len(band_nets),
+        }
+    return out
+
+
+def scan_recommendation(band, rows):
+    """Kanal mit der geringsten Belegung durch FREMDE Netze: 2,4 GHz einer
+    von 1/6/11, 5 GHz ein 80-MHz-Block (bei Gleichstand ohne DFS)."""
+    by_ch = {r["channel"]: r for r in rows}
+    if band == "2g":
+        best = min((1, 6, 11), key=lambda c: (by_ch[c]["foreign_pct"], c))
+        return {"text": "Kanal %d" % best, "channels": [best]}
+    blocks = [[s + 4 * i for i in range(4)] for s in (36, 52, 100, 116, 132, 149)]
+    blocks = [b for b in blocks if all(c in by_ch for c in b)]
+    if not blocks:
+        return {"text": "–", "channels": []}
+    best = min(blocks, key=lambda b: (round(sum(by_ch[c]["foreign_pct"] for c in b) / 4, 1),
+                                      by_ch[b[0]]["dfs"], b[0]))
+    return {"text": "Kanal %d–%d (80 MHz%s)" % (best[0], best[-1], ", DFS" if by_ch[best[0]]["dfs"] else ""),
+            "channels": best}
+
+
 # ---- Persistenz (SQLite als einfacher JSON-Key/Value-Speicher) -----------
 
 class Store:
@@ -727,6 +990,13 @@ class MeshState:
         # Intervalls von selbst wieder auf.
         self.util_history = {}  # rid -> ifname -> deque[(ts, sample-dict)]
         self.util_latest = {}   # rid -> ifname -> berechnetes Ergebnis oder None
+        # WLAN-Scan (#13): bssid -> (zeitpunkt zuletzt gesehen, netz, rid);
+        # nur im Arbeitsspeicher, Eintraege verfallen nach SCAN_MAX_AGE_SEC
+        self.scan_bss = {}
+        self.scan_own_aps = {}   # rid -> {bssid: ssid} der eigenen AP-Interfaces
+        self.scan_at = {}        # rid -> zeitpunkt des letzten Scans
+        self._scan_cache_key = None
+        self._scan_cache = None
 
     @staticmethod
     def _flat_clients(router_result):
@@ -1162,6 +1432,11 @@ class MeshState:
             self.store.set_json("nicknames", self.nicknames)
 
     def snapshot(self):
+        data = self._snapshot_core()
+        data["scan"] = self.scan_snapshot()
+        return data
+
+    def _snapshot_core(self):
         with self.lock:
             router_status = {}
             for rid in ROUTERS:
@@ -1211,6 +1486,54 @@ class MeshState:
             return {rid: len(self._flat_clients(self.routers.get(rid)))
                     for rid, r in ROUTERS.items() if r.get("role") != "sensor"}
 
+    def update_scan(self, rid, nets, own_aps):
+        with self.lock:
+            now = time.time()
+            self.scan_at[rid] = now
+            self.scan_own_aps[rid] = own_aps
+            for n in nets:
+                seen = now - n.get("last_seen_ms", 0) / 1000.0
+                old = self.scan_bss.get(n["bssid"])
+                # je BSSID der juengste Eintrag; etwa gleich alt -> staerkeres Signal
+                if (old is None or seen > old[0] + 5
+                        or (abs(seen - old[0]) <= 5 and n["signal"] > old[1]["signal"])):
+                    self.scan_bss[n["bssid"]] = (seen, n, rid)
+            cutoff = now - SCAN_MAX_AGE_SEC
+            for bssid in [b for b, v in self.scan_bss.items() if v[0] < cutoff]:
+                del self.scan_bss[bssid]
+
+    def scan_snapshot(self):
+        """Auswertung des WLAN-Scans je Band (#13) fuer data.json/MQTT.
+        Zwischengespeichert, bis ein neuer Scan eintrifft."""
+        with self.lock:
+            key = (tuple(sorted(self.scan_at.items())), len(self.scan_bss))
+            if key == self._scan_cache_key:
+                return self._scan_cache
+            nets = [v[1] for v in self.scan_bss.values()]
+            own_bssids = set()
+            own_ssids = {s.lower() for s in SCAN_OWN_SSIDS}
+            for aps in self.scan_own_aps.values():
+                for bssid, ssid in aps.items():
+                    own_bssids.add(bssid)
+                    if ssid:
+                        own_ssids.add(ssid.lower())
+            sources = sorted(rid for rid in self.scan_at if rid in ROUTERS)
+            last = max(self.scan_at.values()) if self.scan_at else None
+
+        def is_own(n):
+            return n["bssid"] in own_bssids or (n["ssid"] or "").lower() in own_ssids
+
+        value = {
+            "enabled": SCAN_INTERVAL_SEC > 0,
+            "interval_sec": SCAN_INTERVAL_SEC,
+            "updated_at": int(last * 1000) if last else None,
+            "sources": [ROUTERS[rid].get("name", rid) for rid in sources],
+            "bands": analyze_scan(nets, is_own) if nets else None,
+        }
+        with self.lock:
+            self._scan_cache_key, self._scan_cache = key, value
+        return value
+
     def util_snapshot(self):
         """Kopie der aktuellen Kanalauslastung: rid -> phy -> Werte oder None."""
         with self.lock:
@@ -1230,7 +1553,23 @@ def router_worker(rid, ip, stop_event, local=False, role="ap"):
     # SSH-Fall, nur der eigentliche Verbindungsaufbau entfaellt.
     remote_cmd = REMOTE_CMDS[role]
     cmd = [ "/bin/sh", "-c", remote_cmd ] if local else None
+    last_scan = 0.0
     while not stop_event.is_set():
+        # WLAN-Scan der Nachbarkanaele (#13) - eigener, seltener Aufruf
+        if SCAN_INTERVAL_SEC > 0 and time.monotonic() - last_scan >= SCAN_INTERVAL_SEC:
+            last_scan = time.monotonic()
+            try:
+                proc = subprocess.run(
+                    ["/bin/sh", "-c", SCAN_CMD] if local else build_ssh_cmd(ip, SCAN_CMD),
+                    stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, timeout=SSH_COMMAND_TIMEOUT,
+                )
+                lines = proc.stdout.splitlines()
+                if "===DONE===" in [l.strip() for l in lines]:
+                    nets, own_aps = parse_scan_output(lines)
+                    STATE.update_scan(rid, nets, own_aps)
+            except Exception:
+                pass  # Fehler zeigt schon die normale Abfrage (Erreichbarkeit)
         try:
             proc = subprocess.run(
                 cmd if local else build_ssh_cmd(ip, remote_cmd),
@@ -1353,6 +1692,20 @@ def util_mqtt_values(util):
     return out
 
 
+# WLAN-Scan je Band (#13), bewusst nur zwei Topics je Band (jedes Topic
+# kostet einen mosquitto_pub-Aufruf auf dem Router):
+#   <base>/scan/<band>/recommendation   Empfehlung, z. B. "Kanal 6"
+#   <base>/scan/<band>/channels         JSON {"1": 12.5, "2": 30.1, ...},
+#                                       Gesamtbelegung je Kanal in %
+def scan_mqtt_values(scan):
+    out = []
+    for band, data in sorted(((scan or {}).get("bands") or {}).items()):
+        out.append(("scan/%s/recommendation" % band, data["recommendation"]["text"]))
+        out.append(("scan/%s/channels" % band, json.dumps(
+            {str(r["channel"]): r["total_pct"] for r in data["channels"]}, separators=(",", ":"))))
+    return out
+
+
 def mqtt_publisher(stop_event):
     if not MQTT_BROKER:
         return
@@ -1376,6 +1729,8 @@ def mqtt_publisher(stop_event):
                 publish("%s/%s/clients" % (MQTT_BASE_TOPIC, rid), str(n))
             publish("%s/roam_events_total" % MQTT_BASE_TOPIC, str(STATE.log_len()))
             for topic, value in util_mqtt_values(STATE.util_snapshot()):
+                publish("%s/%s" % (MQTT_BASE_TOPIC, topic), value)
+            for topic, value in scan_mqtt_values(STATE.scan_snapshot()):
                 publish("%s/%s" % (MQTT_BASE_TOPIC, topic), value)
         except Exception as e:
             # Fehler (falsches Passwort, Broker weg, Zertifikat ungueltig)
@@ -1535,6 +1890,7 @@ class MeshRoamingServer(ThreadingHTTPServer):
 
 def main():
     global CONFIG, STATE, ROUTERS, AP_IFNAMES, UTIL_WINDOW_SEC, REMOTE_CMDS
+    global SCAN_INTERVAL_SEC, SCAN_CMD, SCAN_OWN_SSIDS, SCAN_MAX_AGE_SEC
     global SSH_USER, SSH_KEY, SSH_CONNECT_TIMEOUT, SSH_COMMAND_TIMEOUT
     global USE_CONTROL_MASTER, CONTROL_PERSIST, POLL_INTERVAL_SEC
     global HTTP_BIND, HTTP_PORT, DB_PATH, RUNTIME_DIR, HTML_PATH, LOG_MAX
@@ -1556,6 +1912,15 @@ def main():
     AP_IFNAMES = CONFIG["ap_ifnames"]
     UTIL_WINDOW_SEC = float(CONFIG["channel_util"]["interval_sec"])
     REMOTE_CMDS = {role: build_remote_cmd(role) for role in ROLES}
+    scan_cfg = CONFIG["scan"]
+    SCAN_INTERVAL_SEC = float(scan_cfg.get("interval_sec") or 0)
+    trigger = scan_cfg.get("trigger") or "clients"
+    if trigger not in ("off", "clients", "all"):
+        raise SystemExit("Konfiguration %s: scan.trigger %r unbekannt (erlaubt: off, clients, all)"
+                         % (CONFIG_PATH, trigger))
+    SCAN_CMD = build_scan_cmd(trigger)
+    SCAN_OWN_SSIDS = set(scan_cfg.get("own_ssids") or [])
+    SCAN_MAX_AGE_SEC = float(scan_cfg.get("max_age_sec") or 300)
 
     SSH_USER = CONFIG["ssh"]["user"]
     SSH_KEY = CONFIG["ssh"]["key_path"]

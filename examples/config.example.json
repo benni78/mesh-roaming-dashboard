@@ -72,6 +72,13 @@
     }
   },
 
+  "scan": {
+    "interval_sec": 60,
+    "trigger": "clients",
+    "own_ssids": [],
+    "max_age_sec": 300
+  },
+
   "routers": [
     {
       "id": "og-west",

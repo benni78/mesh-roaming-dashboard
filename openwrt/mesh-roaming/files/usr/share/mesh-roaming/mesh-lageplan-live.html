@@ -207,6 +207,16 @@
   .rating-badge.good{color:#06200f;background:var(--chanutil-tx);}
   .rating-badge.fair{color:#2e1d03;background:var(--chanutil-other);}
   .rating-badge.bad{color:#300606;background:var(--chanutil-foreign);}
+  .main-col{display:flex;flex-direction:column;gap:20px;min-width:0;}
+  .scan-charts{display:flex;flex-direction:column;gap:18px;margin-top:10px;}
+  .scan-chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-family:var(--font-mono);font-size:10.5px;color:var(--text-muted);margin-bottom:4px;}
+  .scan-chart-head b{font-family:var(--font-display);font-size:12.5px;color:var(--text-primary);font-weight:600;}
+  .scan-rec{color:var(--text-secondary);}
+  .scan-chart svg{width:100%;height:auto;display:block;}
+  .scan-chart .scan-hit{fill:transparent;}
+  .scan-chart .scan-hit:hover{fill:rgba(255,255,255,0.05);}
+  .scan-empty{font-size:11px;color:var(--text-muted);font-style:italic;padding:10px 0;}
+  .util-legend-swatch.hatch{background:repeating-linear-gradient(135deg,var(--chanutil-foreign) 0 2px,rgba(230,103,103,0.3) 2px 5px);}
   .util-notes{font-size:10.5px;line-height:1.45;color:var(--text-muted);margin-top:8px;}
   .util-router-badge{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--sensor);margin-left:6px;}
   .host-title.sensor{fill:var(--sensor);}
@@ -239,6 +249,7 @@
   </header>
 
   <div class="layout">
+    <div class="main-col">
     <section class="panel floorplan-outer">
       <h2>Grundriss</h2>
       <p class="hint" id="mapHint">Farbe = SSID · Abstand vom Router = Signalstärke (außen = schwächer) · durchgehend = aktueller Link · gestrichelt = auch an anderer Station empfangbar · Klick auf einen Client = Details.</p>
@@ -266,6 +277,18 @@
       </div>
     </section>
 
+    <section class="panel scan-panel" id="scanPanel">
+      <h2>Nachbarkanäle (WLAN-Scan)</h2>
+      <p class="hint" id="scanHint">Belegung je 20-MHz-Kanal aus dem WLAN-Scan der Router – eigene und fremde Netze.</p>
+      <div class="scan-charts">
+        <div class="scan-chart" id="scanChart2g"></div>
+        <div class="scan-chart" id="scanChart5g"></div>
+      </div>
+      <div class="util-legend" id="scanLegend"></div>
+      <div class="util-notes" id="scanNotes"></div>
+    </section>
+    </div>
+
     <aside class="sidebar">
       <section class="panel">
         <h2>Übersicht</h2>
@@ -282,6 +305,7 @@
       </section>
     </aside>
   </div>
+
 </div>
 
 <script>
@@ -415,6 +439,12 @@
   var logList = document.getElementById('logList');
   var networkLabelEl = document.getElementById('networkLabel');
   var utilList = document.getElementById('utilList');
+  var scanChart2g = document.getElementById('scanChart2g');
+  var scanChart5g = document.getElementById('scanChart5g');
+  var scanLegend = document.getElementById('scanLegend');
+  var scanNotes = document.getElementById('scanNotes');
+  var scanHint = document.getElementById('scanHint');
+  var lastScan = null;   // "scan" aus /data.json (#13)
   var utilHintEl = document.getElementById('utilHint');
 
   // ---- Konfiguration anwenden (einmalig beim Start, s. loadConfigAndStart) -
@@ -1140,12 +1170,142 @@
     utilList.innerHTML = parts.join('');
   }
 
+  // ---- Nachbarkanaele aus dem WLAN-Scan (#13) ------------------------------
+  // Je Band ein Balkendiagramm: je 20-MHz-Kanal gestapelt eigen (unten) und
+  // fremd, Gesamthoehe = gemessene (BSS Load) bzw. geschaetzte Belegung.
+  // Geschaetzt = schraffiert. Zahl ueber dem Balken = Anzahl der Netze, die
+  // den Kanal ganz oder teilweise belegen. Logik wie tools/WlanAnalyzer.
+  var SCAN_STEP = 30, SCAN_LEFT = 34, SCAN_TOP = 18, SCAN_PLOT_H = 130, SCAN_BAR_W = 20;
+
+  function scanAgo(ms){
+    if (!ms) return '';
+    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    return s < 90 ? 'vor '+s+' s' : 'vor '+Math.round(s/60)+' min';
+  }
+
+  // Balkensegment mit abgerundetem oberen Ende (Datenende), unten gerade
+  // (an der Grundlinie bzw. am darunterliegenden Segment)
+  function scanSegPath(x, yTop, w, h, roundTop){
+    if (h <= 0) return '';
+    var r = roundTop ? Math.min(4, h, w/2) : 0;
+    return 'M'+x+' '+(yTop+h)+' L'+x+' '+(yTop+r)+(r ? ' Q'+x+' '+yTop+' '+(x+r)+' '+yTop : '')+
+      ' L'+(x+w-r)+' '+yTop+(r ? ' Q'+(x+w)+' '+yTop+' '+(x+w)+' '+(yTop+r) : '')+
+      ' L'+(x+w)+' '+(yTop+h)+' Z';
+  }
+
+  function scanTooltip(r){
+    var lines = ['Kanal '+r.channel+' ('+r.freq_mhz+' MHz)'+(r.dfs ? ' · DFS' : ''),
+      'Belegt '+fmtPct(r.total_pct)+(r.measured_pct != null
+        ? ' (gemessen: BSS Load eines AP)' : ' (geschätzt aus Anzahl und Signal der Netze)'),
+      'Eigene Netze '+fmtPct(r.own_pct)+' · fremde Netze '+fmtPct(r.foreign_pct),
+      (r.own_count + r.foreign_count)+' Netze ('+r.own_count+' eigene, '+r.foreign_count+' fremde)'];
+    (r.networks || []).forEach(function(n){
+      lines.push('  '+(n.own ? '★ ' : '')+(n.ssid || '(verborgen)')+' · '+n.signal+' dBm · Kanal '+n.primary);
+    });
+    return lines.join('\n');
+  }
+
+  function renderScanBand(el, band, label, data){
+    if (!el) return;
+    var head = '<div class="scan-chart-head"><span><b>'+label+'</b>';
+    if (!data) {
+      el.innerHTML = head+'</span></div><div class="scan-empty">Keine Netze in diesem Band gefunden.</div>';
+      return;
+    }
+    head += ' · '+data.network_count+' '+(data.network_count === 1 ? 'Netz' : 'Netze')+'</span>'+
+      '<span class="scan-rec">Empfehlung: '+escapeHtml(data.recommendation.text)+'</span></div>';
+    var rows = data.channels;
+    var W = SCAN_LEFT + rows.length * SCAN_STEP + 4, base = SCAN_TOP + SCAN_PLOT_H;
+    var H = base + 34;
+    var y = function(pct){ return base - Math.max(0, Math.min(100, pct)) / 100 * SCAN_PLOT_H; };
+    var svg = ['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Kanalbelegung '+label+'">',
+      '<defs>',
+      '<pattern id="scanHatchOwn'+band+'" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">',
+      '<rect width="5" height="5" fill="var(--chanutil-own)" fill-opacity="0.3"></rect>',
+      '<rect width="2" height="5" fill="var(--chanutil-own)"></rect></pattern>',
+      '<pattern id="scanHatchForeign'+band+'" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">',
+      '<rect width="5" height="5" fill="var(--chanutil-foreign)" fill-opacity="0.3"></rect>',
+      '<rect width="2" height="5" fill="var(--chanutil-foreign)"></rect></pattern>',
+      '</defs>'];
+    // DFS-Bereich hinterlegen
+    var dfsIdx = rows.map(function(r, i){ return r.dfs ? i : -1; }).filter(function(i){ return i >= 0; });
+    if (dfsIdx.length) {
+      var dx0 = SCAN_LEFT + dfsIdx[0] * SCAN_STEP, dx1 = SCAN_LEFT + (dfsIdx[dfsIdx.length-1] + 1) * SCAN_STEP;
+      svg.push('<rect x="'+dx0+'" y="'+(SCAN_TOP-12)+'" width="'+(dx1-dx0)+'" height="'+(SCAN_PLOT_H+12)+'" fill="#ffffff" fill-opacity="0.025"></rect>');
+      svg.push('<text x="'+(dx0+4)+'" y="'+(SCAN_TOP-3)+'" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">DFS</text>');
+    }
+    // Raster (zurueckhaltend) und Achsenbeschriftung
+    [0, 50, 100].forEach(function(v){
+      var yy = y(v);
+      svg.push('<line x1="'+SCAN_LEFT+'" x2="'+(W-4)+'" y1="'+yy+'" y2="'+yy+'" stroke="var(--panel-border)" stroke-width="'+(v === 0 ? 1 : 0.6)+'"></line>');
+      svg.push('<text x="'+(SCAN_LEFT-5)+'" y="'+(yy+3)+'" text-anchor="end" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">'+v+(v === 100 ? '%' : '')+'</text>');
+    });
+    var rec = {};
+    (data.recommendation.channels || []).forEach(function(c){ rec[c] = true; });
+    rows.forEach(function(r, i){
+      var x = SCAN_LEFT + i * SCAN_STEP + (SCAN_STEP - SCAN_BAR_W) / 2;
+      var est = r.measured_pct == null;
+      var ownH = r.own_pct / 100 * SCAN_PLOT_H, forH = r.foreign_pct / 100 * SCAN_PLOT_H;
+      var gap = (ownH > 0 && forH > 0) ? 2 : 0;
+      var ownFill = est ? 'url(#scanHatchOwn'+band+')' : 'var(--chanutil-own)';
+      var forFill = est ? 'url(#scanHatchForeign'+band+')' : 'var(--chanutil-foreign)';
+      if (ownH > 0) svg.push('<path d="'+scanSegPath(x, base - ownH, SCAN_BAR_W, ownH, forH <= 0)+'" fill="'+ownFill+'"></path>');
+      if (forH > 0) svg.push('<path d="'+scanSegPath(x, base - ownH - gap - forH, SCAN_BAR_W, forH, true)+'" fill="'+forFill+'"></path>');
+      var n = r.own_count + r.foreign_count;
+      if (n > 0) svg.push('<text x="'+(x + SCAN_BAR_W/2)+'" y="'+(y(r.total_pct) - 4 - gap)+'" text-anchor="middle" font-size="9.5" fill="var(--text-secondary)" font-family="var(--font-mono)">'+n+'</text>');
+      // Kanalnummer; Kanaele mit eigenen Netzen hervorgehoben
+      svg.push('<text x="'+(x + SCAN_BAR_W/2)+'" y="'+(base + 12)+'" text-anchor="middle" font-size="10" font-family="var(--font-mono)" '+
+        (r.own_count ? 'fill="var(--text-primary)" font-weight="700"' : 'fill="var(--text-muted)"')+'>'+r.channel+'</text>');
+      // Empfehlung: Markierung unter der Kanalnummer
+      if (rec[r.channel]) svg.push('<rect x="'+(SCAN_LEFT + i * SCAN_STEP + 2)+'" y="'+(base + 17)+'" width="'+(SCAN_STEP - 4)+'" height="3" rx="1.5" fill="var(--text-secondary)"></rect>');
+      // Trefferflaeche fuer den Tooltip (groesser als der Balken)
+      svg.push('<rect class="scan-hit" x="'+(SCAN_LEFT + i * SCAN_STEP)+'" y="'+(SCAN_TOP-12)+'" width="'+SCAN_STEP+'" height="'+(SCAN_PLOT_H + 34)+'"><title>'+escapeHtml(scanTooltip(r))+'</title></rect>');
+    });
+    svg.push('<text x="'+(W-4)+'" y="'+(H-2)+'" text-anchor="end" font-size="9.5" fill="var(--text-muted)" font-family="var(--font-mono)">▬ Empfehlung</text>');
+    svg.push('</svg>');
+    el.innerHTML = head + svg.join('');
+    // gleicher Massstab fuer beide Baender: 2,4 GHz (13 Kanaele) schmaler
+    el.style.maxWidth = Math.max(45, Math.round(W / (SCAN_LEFT + 25 * SCAN_STEP + 4) * 100)) + '%';
+  }
+
+  function renderScan(){
+    if (!scanChart2g) return;
+    var s = lastScan;
+    if (!s || !s.enabled) {
+      scanChart2g.innerHTML = '<div class="scan-empty">WLAN-Scan ist ausgeschaltet (Grundeinstellungen → WLAN-Scan).</div>';
+      scanChart5g.innerHTML = ''; scanLegend.innerHTML = ''; scanNotes.innerHTML = '';
+      return;
+    }
+    if (!s.bands) {
+      scanChart2g.innerHTML = '<div class="scan-empty">Noch keine Scan-Ergebnisse'+(s.updated_at ? ' (letzter Scan '+scanAgo(s.updated_at)+' ohne Netze)' : '')+
+        '. Router ohne Client-Interface scannen nur, wenn unter Grundeinstellungen → WLAN-Scan „Alle Interfaces“ gewählt ist.</div>';
+      scanChart5g.innerHTML = ''; scanLegend.innerHTML = ''; scanNotes.innerHTML = '';
+      return;
+    }
+    renderScanBand(scanChart2g, '2g', '2,4 GHz', s.bands['2g'] && s.bands['2g'].network_count ? s.bands['2g'] : null);
+    renderScanBand(scanChart5g, '5g', '5 GHz', s.bands['5g'] && s.bands['5g'].network_count ? s.bands['5g'] : null);
+    scanHint.textContent = 'Belegung je 20-MHz-Kanal aus dem WLAN-Scan von '+(s.sources.join(', ') || '–')+
+      ' · letzter Scan '+scanAgo(s.updated_at)+' · alle '+s.interval_sec+' s.';
+    scanLegend.innerHTML =
+      '<span class="util-legend-item"><span class="util-legend-swatch own"></span>Eigene Netze</span>'+
+      '<span class="util-legend-item"><span class="util-legend-swatch foreign"></span>Fremde Netze</span>'+
+      '<span class="util-legend-item"><span class="util-legend-swatch hatch"></span>Geschätzt (schraffiert)</span>';
+    scanNotes.innerHTML =
+      '<b>Gemessen</b> (volle Balken): Viele Access Points melden in ihren Beacons die selbst gemessene '+
+      'Belegung ihres Kanals (BSS Load) – durch alle Netze, eigene wie fremde. Es gilt der höchste Wert. '+
+      '<b>Geschätzt</b> (schraffiert): Meldet kein AP diesen Wert, ergibt sich ein Belegungsindex aus Anzahl '+
+      'und Signalstärke der Netze, die den Kanal überlappen – ein Anhaltspunkt, keine Messung. '+
+      'Zahl über dem Balken = Anzahl der Netze. Fett = Kanal mit eigenen Netzen. '+
+      '<b>Empfehlung</b>: geringste Belegung durch fremde Netze (2,4 GHz: Kanal 1, 6 oder 11; 5 GHz: 80-MHz-Block, ohne DFS bevorzugt).';
+  }
+
   function render(){
     setBadge();
     renderMap();
     renderSummary();
     renderLog();
     renderUtil();
+    renderScan();
     refreshDetailIfOpen();
   }
 
@@ -1168,6 +1328,7 @@
     eventLog = (raw && Array.isArray(raw.log)) ? raw.log : [];
     routerStatus = (raw && raw.meta && raw.meta.routerStatus) || {};
     lastChannelUtil = (raw && raw.channelUtil && typeof raw.channelUtil === 'object') ? raw.channelUtil : {};
+    lastScan = (raw && raw.scan && typeof raw.scan === 'object') ? raw.scan : null;
 
     var newAssignment = {};
     Object.keys(perRouter).forEach(function(rid){
@@ -1224,7 +1385,7 @@
   }
 
   // ---- Version ------------------------------------------------------------
-  var APP_VERSION = '1.4'; // MESH_ROAMING_VERSION
+  var APP_VERSION = '2.0'; // MESH_ROAMING_VERSION
   function showVersion(serverVersion){
     var el = document.getElementById('appVersion');
     var text = 'Version ' + APP_VERSION;

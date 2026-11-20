@@ -2,6 +2,27 @@
 
 ## Mesh Roaming Dashboard
 
+### 2.0 (Pakete 2.0-r1)
+
+- **Nachbarkanäle aus dem WLAN-Scan** (Issue #13): Die Router werten
+  zyklisch (Standard alle 60 s) die gefundenen WLANs aus
+  (`iw dev <if> scan dump`); die Live-Seite zeigt zwei Diagramme für 2,4 und
+  5 GHz: Belegung je 20-MHz-Kanal, getrennt nach eigenen und fremden Netzen,
+  gemessen (BSS Load der APs) oder geschätzt (schraffiert), Netzanzahl,
+  DFS-Bereich und Kanalempfehlung. Gleiche Logik wie der WLAN-Analyzer
+  (Windows), aber ohne Verlauf; bei der Aufteilung eigen/fremd zählt die
+  Geräteanzahl nur, wenn alle beteiligten Netze sie melden.
+- Aktiver Scan einstellbar: nur Client-Interfaces (Standard), alle
+  Interfaces (auch Access Points, kurze Unterbrechung) oder aus. Eigene
+  Netze werden über die SSIDs/BSSIDs der eigenen APs automatisch erkannt,
+  weitere SSIDs einstellbar. LuCI: Grundeinstellungen → neuer Reiter
+  „WLAN-Scan“; `config.json`: Abschnitt `scan`.
+- Neue MQTT-Werte `…/scan/<band>/recommendation` und `…/scan/<band>/channels`
+  (JSON).
+- Live-Seite: Das Panel „Nachbarkanäle“ steht unter dem Grundriss.
+- Raspberry-Pi-Variante: gleicher Dienst und gleiche Seite;
+  `examples/config.*.json` um `scan` ergänzt.
+
 ### 1.4 (Pakete 1.4-r1)
 
 - **LuCI zeigt die installierte Version** (Issue #9): Die Seitentitel nennen

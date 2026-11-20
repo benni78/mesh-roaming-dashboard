@@ -33,6 +33,7 @@ return view.extend({
 		s.tab('privacy', 'Datenschutz');
 		s.tab('ssh', 'SSH');
 		s.tab('mqtt', 'MQTT');
+		s.tab('scan', 'WLAN-Scan');
 		s.tab('advanced', 'Erweitert');
 
 		var o = s.taboption('general', form.Value, 'label', 'Anzeigename',
@@ -197,6 +198,39 @@ return view.extend({
 			'nicht passt.');
 		o.default = '0';
 		o.depends({ mqtt_broker: /.+/, mqtt_tls: '1' });
+
+		// WLAN-Scan der Nachbarkanaele (#13)
+		o = s.taboption('scan', form.Value, 'scan_interval_sec', 'Scan-Intervall (Sekunden)',
+			'Wie oft jeder Router die WLAN-Umgebung auswertet (Diagramme „Nachbarkanäle“ ' +
+			'auf der Live-Seite). 0 = WLAN-Scan aus.');
+		o.datatype = 'uinteger';
+		o.default = '60';
+		o.placeholder = '60';
+
+		o = s.taboption('scan', form.ListValue, 'scan_trigger', 'Aktiv scannen auf',
+			'„Nur Client-Interfaces“: Messpunkte scannen aktiv, dort scannt der WLAN-Client ' +
+			'ohnehin – die Verbindung bleibt praktisch ungestört. „Alle Interfaces“: auch ' +
+			'Access Points scannen aktiv; die Funkkarte verlässt dafür kurz ihren Kanal, ' +
+			'angemeldete Geräte merken eine kurze Pause. „Nicht aktiv scannen“: nur bereits ' +
+			'vorhandene Scan-Ergebnisse auswerten.');
+		o.value('clients', 'Nur Client-Interfaces (empfohlen)');
+		o.value('all', 'Alle Interfaces (auch Access Points)');
+		o.value('off', 'Nicht aktiv scannen');
+		o.default = 'clients';
+		o.depends({ scan_interval_sec: /^(?!0+$).*/ });
+
+		o = s.taboption('scan', form.DynamicList, 'scan_own_ssid', 'Weitere eigene SSIDs',
+			'Die SSIDs und BSSIDs der eigenen Access Points werden automatisch als „eigen“ ' +
+			'erkannt. Hier zusätzlich SSIDs eintragen, die ebenfalls als eigen gelten sollen ' +
+			'(z. B. von Access Points, die nicht im Dashboard eingetragen sind).');
+		o.depends({ scan_interval_sec: /^(?!0+$).*/ });
+
+		o = s.taboption('scan', form.Value, 'scan_max_age_sec', 'Netze vergessen nach (Sekunden)',
+			'Netze, die so lange von keinem Router mehr gesehen wurden, fallen aus der Auswertung.');
+		o.datatype = 'range(30,3600)';
+		o.default = '300';
+		o.placeholder = '300';
+		o.depends({ scan_interval_sec: /^(?!0+$).*/ });
 
 		return m.render().then(L.bind(mrcommon.withHints, mrcommon, versions));
 	}

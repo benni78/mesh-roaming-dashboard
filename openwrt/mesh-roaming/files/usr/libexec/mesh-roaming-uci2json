@@ -29,7 +29,7 @@ Copyright Benjamin Johann (mesh-roaming-dashboard)
 SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
 """
 
-__version__ = "1.4"  # MESH_ROAMING_VERSION
+__version__ = "2.0"  # MESH_ROAMING_VERSION
 
 import argparse
 import json
@@ -211,6 +211,12 @@ def build_config(sections):
                 "foreign": _str(g, "util_color_foreign", "#e66767"),
                 "rest": _str(g, "util_color_rest", "#2f3d46"),
             },
+        },
+        "scan": {
+            "interval_sec": _int(g, "scan_interval_sec", 60),
+            "trigger": _str(g, "scan_trigger", "clients"),
+            "own_ssids": gl.get("scan_own_ssid", []),
+            "max_age_sec": _int(g, "scan_max_age_sec", 300),
         },
         "routers": routers,
         "mqtt": {

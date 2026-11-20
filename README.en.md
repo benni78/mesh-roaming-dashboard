@@ -212,6 +212,10 @@ applicable national law). If in doubt, seek expert advice before use.
   routers can also receive the device.
 - Channel utilization per router and radio, from
   `iw dev <ifname> survey dump` (see [Channel utilization](#channel-utilization)).
+- **Neighbouring channels (WiFi scan, since 2.0):** the routers scan the
+  WiFi environment periodically; two charts (2.4 and 5 GHz) show how busy
+  each channel is, split into own and foreign networks, with a channel
+  recommendation (see [Neighbouring channels](#neighbouring-channels-wifi-scan)).
 - **Measuring points:** a router that is only a WiFi client in the network
   can be added as a "measuring point" (`sensor`) and then only measures the
   channel utilization of its radios.
@@ -263,6 +267,45 @@ interface is currently on, i.e. the channel of the access point it is
 connected to. The service does not query client lists, DHCP leases or ARP
 tables from measuring points.
 
+### Neighbouring channels (WiFi scan)
+
+Every `scan.interval_sec` seconds (default 60, 0 = off) each router evaluates
+the networks it found last (`iw dev <if> scan dump`, one interface per
+radio). The results of all routers are merged; networks no router has seen
+for `scan.max_age_sec` are dropped. The live page shows two bar charts,
+2.4 and 5 GHz, without history:
+
+- **Height** = how busy the 20 MHz channel is. **Measured** (solid bar): the
+  highest value an access point on this channel reports in its beacons
+  (*BSS Load*, caused by all networks). **Estimated** (hatched): without that
+  value, an occupancy index from number and signal strength of the networks
+  overlapping the channel (up to 20 points per network, −95 dBm = 5 % to
+  −50 dBm = 100 %) – a rough indicator, not a measurement.
+- **Blue/red** = share of own/foreign networks (by connected devices if all
+  networks involved report them, otherwise by signal-weighted network
+  count). The SSIDs and BSSIDs of your own access points count as own
+  automatically, plus `scan.own_ssids`.
+- **Number above the bar** = number of networks; tooltip with the strongest
+  networks; bold channel number = channel with own networks; DFS range
+  shaded on 5 GHz.
+- **Recommendation**: channel with the least use by foreign networks
+  (2.4 GHz: 1, 6 or 11; 5 GHz: 80 MHz block, non-DFS preferred).
+
+Same logic as the WLAN Analyzer (Windows). **Active scanning** depends on
+`scan.trigger` (LuCI: Grundeinstellungen → WLAN-Scan):
+
+| Value | Behaviour |
+|---|---|
+| `clients` (default) | client interfaces only (measuring points) – the WiFi client scans anyway, the connection is practically undisturbed |
+| `all` | access points as well (`ap-force`) – the radio briefly leaves its channel, connected devices notice a short pause |
+| `off` | no active scanning, only evaluate existing results |
+
+A router that is only an access point usually reports no networks with
+`clients`; use a measuring point or choose `all`. SSIDs of foreign networks
+are identifiers broadcast publicly by access points, not device data; they
+are not stored, only kept in memory, and the page shows only SSID and
+signal (no BSSIDs).
+
 ### MQTT topics
 
 With `mqtt.broker` set, the service publishes every
@@ -284,6 +327,8 @@ With `mqtt.broker` set, the service publishes every
 | `<base>/<router>/util/<band>/driver` | WiFi driver, e.g. `ath9k`, `mt7915e` |
 | `<base>/<router>/util/<band>/own_sta` | own traffic measured via the connected devices, % |
 | `<base>/<router>/util/<band>/rx_own`, `…/rx_other` | received from own devices / other networks, % (drivers without BSS receive time) |
+| `<base>/scan/<band>/recommendation` | WiFi scan: channel recommendation, e.g. `Kanal 6` |
+| `<base>/scan/<band>/channels` | WiFi scan: occupancy per channel as JSON, e.g. `{"1":12.5,"6":30.1,…}` |
 
 `<band>` is `2g`, `5g` or `6g`. If a router has two radios in the same
 band, the radio name (`phy0`, `phy1`, …) is used instead. Values the driver
@@ -332,24 +377,24 @@ the current version (architecture `all`, run on any target):
 
 | File | for |
 |---|---|
-| `mesh-roaming_1.4-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
-| `luci-app-mesh-roaming_1.4-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
-| `mesh-roaming_1.4-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
-| `luci-app-mesh-roaming_1.4-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
+| `mesh-roaming_2.0-r1_all.apk` | service, OpenWrt 25.12+ (`apk`) |
+| `luci-app-mesh-roaming_2.0-r1_all.apk` | LuCI pages, OpenWrt 25.12+ (`apk`) |
+| `mesh-roaming_2.0-r1_all.ipk` | service, OpenWrt up to 24.10 (`opkg`) |
+| `luci-app-mesh-roaming_2.0-r1_all.ipk` | LuCI pages, OpenWrt up to 24.10 (`opkg`) |
 
 ```sh
 # on the PC: copy the packages to the router (-O: Dropbear has no SFTP)
-scp -O packages/*_1.4-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
+scp -O packages/*_2.0-r1_all.apk packages/SHA256SUMS root@<router-ip>:/tmp/
 
 # on the router (apk, OpenWrt 25.12+)
 cd /tmp
 grep apk SHA256SUMS | sha256sum -c -   # optional: packages intact?
 apk update
-apk add --allow-untrusted ./mesh-roaming_1.4-r1_all.apk ./luci-app-mesh-roaming_1.4-r1_all.apk
+apk add --allow-untrusted ./mesh-roaming_2.0-r1_all.apk ./luci-app-mesh-roaming_2.0-r1_all.apk
 
 # or on the router (opkg, up to OpenWrt 24.10)
 opkg update
-opkg install ./mesh-roaming_1.4-r1_all.ipk ./luci-app-mesh-roaming_1.4-r1_all.ipk
+opkg install ./mesh-roaming_2.0-r1_all.ipk ./luci-app-mesh-roaming_2.0-r1_all.ipk
 ```
 
 The package manager fetches the dependencies (`python3`, `python3-sqlite3`,
@@ -453,9 +498,9 @@ own [third-party notices](tools/WlanAnalyzer/THIRD-PARTY-NOTICES.md).
 
 | Program | Version | Shown in |
 |---|---|---|
-| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 1.3 | `--version`, live page header, LuCI page title, `/config.json` |
-| Raspberry Pi variant (`src/`, `systemd/`) | 1.3 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
-| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 1.4-r1 | `apk info -v` or `opkg list-installed` |
+| Service `mesh_roaming_pi.py`, live page, `mesh-roaming-uci2json`, `mesh-roaming-status`, LuCI pages, systemd unit, build scripts | 2.0 | `--version`, live page header, LuCI page title, `/config.json` |
+| Raspberry Pi variant (`src/`, `systemd/`) | 2.0 | `python3 /opt/mesh-roaming/mesh_roaming_pi.py --version`, live page header |
+| OpenWrt packages `mesh-roaming`, `luci-app-mesh-roaming` | 2.0-r1 | `apk info -v` or `opkg list-installed` |
 | WLAN Analyzer | 1.1.1 | title bar, *Info*, `--version`, EXE file properties |
 
 Changes per version: [`CHANGELOG.md`](CHANGELOG.md). All version strings of

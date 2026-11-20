@@ -204,7 +204,9 @@ speichert das Menü pro Anmeldung im Browser (Neuladen mit Strg+F5 oder ein
 Neustart von Diensten auf dem Router reicht nicht).
 
 - **Grundeinstellungen** – Bind-Adresse/Port, SSH-Zugangsdaten, Schwellwerte,
-  Kartenlayout, Standard-SSID-Farbreihenfolge, MQTT (optional, siehe unten).
+  Kartenlayout, Standard-SSID-Farbreihenfolge, MQTT (optional, siehe unten),
+  WLAN-Scan der Nachbarkanäle (Intervall, auf welchen Interfaces aktiv
+  gescannt wird, weitere eigene SSIDs – siehe README, „Nachbarkanäle“).
 - **Router** – Liste aller Router (eine „Instanz“ je Router, Aufbau wie
   *VPN → OpenVPN*): Name, Raum, IP-Adresse, die Flags „Dieser Router“
   (nur bei einem Router möglich) und „Deaktiviert“ direkt in der Liste
