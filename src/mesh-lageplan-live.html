@@ -197,6 +197,10 @@
   .util-seg.rx .util-seg-label{color:#1c1033;}
   .util-seg.other .util-seg-label{color:#2e1d03;}
   .util-band-sub{font-size:10px;color:var(--text-muted);margin:-1px 0 3px;}
+  .util-band-cap{font-family:var(--font-mono);font-size:9.5px;margin:0 0 3px;cursor:help;}
+  .util-band-cap.full{color:var(--text-muted);}
+  .util-band-cap.limited{color:var(--chanutil-other);}
+  .util-notes{font-size:10.5px;line-height:1.45;color:var(--text-muted);margin-top:8px;}
   .util-router-badge{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;letter-spacing:0.4px;color:var(--sensor);margin-left:6px;}
   .host-title.sensor{fill:var(--sensor);}
   .util-unavailable{font-size:11px;color:var(--text-muted);font-style:italic;padding:2px 0;}
@@ -933,22 +937,42 @@
   }
 
   // Segmente je Messart (s. _compute_util im Dienst):
-  //  own_foreign - Treiber mit BSS-Empfangszeit (z. B. mt76): eigen/fremd/frei
-  //  rx_tx       - Treiber ohne (z. B. ath9k): Senden/Empfang/Stoerung/frei
+  //  own_foreign - Chip/Treiber liefert BSS-Empfangszeit (z. B. mt76):
+  //                eigenes Netz / fremde Netze / frei
+  //  rx_tx       - Chip/Treiber ohne (z. B. ath9k): Senden / Empfang (alle
+  //                WLANs zusammen, NICHT nach eigen/fremd trennbar) /
+  //                Stoerung / frei
+  // "label" steht im Tooltip, "legend" in der Legende. Bei einem
+  // Client-Interface (Messpunkt) ist das "eigene" Netz das Netz des AP, mit
+  // dem es verbunden ist - nicht der Verkehr des Messpunkts selbst (#10).
   var UTIL_SEGMENTS = {
     own_foreign: [
-      { cls:'own', key:'own', label:'Eigene Nutzung' },
-      { cls:'foreign', key:'foreign', label:'Fremde Nutzung' },
-      { cls:'rest', key:'rest', label:'Rest (frei)' }
+      { cls:'own', key:'own', label:'Eigenes Netz (dieser AP)', legend:'Eigenes bzw. verbundenes Netz' },
+      { cls:'foreign', key:'foreign', label:'Fremde Netze auf dem Kanal', legend:'Fremde Netze' },
+      { cls:'rest', key:'rest', label:'Frei', legend:'Frei' }
     ],
     rx_tx: [
-      { cls:'tx', key:'tx', label:'Senden' },
-      { cls:'rx', key:'rx', label:'Empfang (eigenes Netz + Nachbarn)' },
-      { cls:'other', key:'other', label:'Störung / nicht dekodierbar' },
-      { cls:'rest', key:'free', label:'Frei' }
+      { cls:'tx', key:'tx', label:'Senden (dieser Router)', legend:'Senden' },
+      { cls:'rx', key:'rx', label:'Empfang – alle WLANs auf dem Kanal (eigene und fremde, nicht trennbar)',
+        legend:'Empfang (alle WLANs auf dem Kanal)' },
+      { cls:'other', key:'other', label:'Störung / nicht dekodierbar', legend:'Störung / nicht dekodierbar' },
+      { cls:'rest', key:'free', label:'Frei', legend:'Frei' }
     ]
   };
   var utilModesSeen = {};
+
+  // Was der Chip dieser Funkkarte bei der Kanalauslastung kann (#10).
+  function utilCapability(data){
+    var drv = data.driver ? 'Treiber '+data.driver : 'Treiber unbekannt';
+    if (data.mode === 'rx_tx') {
+      return { text: drv+' · eigen/fremd nicht unterscheidbar', cls:'limited',
+        title: 'Dieser WLAN-Chip meldet keine Empfangszeit je Netz (BSS). „Empfang“ enthält '+
+               'deshalb alle WLAN-Pakete auf dem Kanal – das eigene Netz und Nachbarnetze zusammen.' };
+    }
+    return { text: drv+' · eigen/fremd getrennt gemessen', cls:'full',
+      title: 'Dieser WLAN-Chip meldet die Empfangszeit je Netz (BSS) – eigener und fremder '+
+             'Verkehr werden getrennt gemessen.' };
+  }
 
   function renderUtilBand(phy, data){
     if (!data) {
@@ -959,6 +983,7 @@
     }
     var mode = UTIL_SEGMENTS[data.mode] ? data.mode : 'own_foreign';
     utilModesSeen[mode] = true;
+    var isClient = data.iftype === 'managed';
     var label = bandLabel(data.band, data.freq_mhz) + (data.channel ? ' · Kanal '+data.channel : '');
     var sub = [];
     if (data.iftype === 'managed') sub.push('Client'+(data.ssid ? ' von „'+escapeHtml(data.ssid)+'“' : ''));
@@ -967,11 +992,16 @@
     if (typeof data.noise_dbm === 'number') sub.push('Rauschen '+data.noise_dbm+' dBm');
     var segs = UTIL_SEGMENTS[mode].map(function(s){
       var pctV = data[s.key+'_pct'], msV = data[s.key+'_ms'];
-      return utilSegmentHtml(s.cls, pctV, msV, pctV, s.label+': '+fmtMs(msV)+' ('+fmtPct(pctV)+')');
+      var text = s.label;
+      if (s.cls === 'own' && isClient)
+        text = 'Verbundenes Netz'+(data.ssid ? ' „'+data.ssid+'“' : '')+' (alle Geräte darin)';
+      return utilSegmentHtml(s.cls, pctV, msV, pctV, text+': '+fmtMs(msV)+' ('+fmtPct(pctV)+')');
     }).join('');
+    var cap = utilCapability(data);
     return '<div class="util-band">' +
       '<div class="util-band-head"><span>'+label+'</span><span>letzte '+fmt(data.window_sec)+' s</span></div>' +
       (sub.length ? '<div class="util-band-sub">'+sub.join(' · ')+'</div>' : '') +
+      '<div class="util-band-cap '+cap.cls+'" title="'+escapeHtml(cap.title)+'">'+escapeHtml(cap.text)+'</div>' +
       '<div class="util-bar">'+segs+'</div>' +
     '</div>';
   }
@@ -1020,13 +1050,23 @@
     ['own_foreign', 'rx_tx'].forEach(function(mode){
       if (!utilModesSeen[mode]) return;
       UTIL_SEGMENTS[mode].forEach(function(s){
-        var text = s.cls === 'rest' ? 'Frei' : s.label;
+        var text = s.legend;
         if (legendSeen[text]) return;
         legendSeen[text] = true;
         legendItems.push('<span class="util-legend-item"><span class="util-legend-swatch '+s.cls+'"></span>'+text+'</span>');
       });
     });
     parts.push('<div class="util-legend">'+legendItems.join('')+'</div>');
+    // Kurze Erklaerung je vorkommender Messart (#10)
+    var notes = [];
+    if (utilModesSeen.own_foreign)
+      notes.push('<b>Eigen/fremd getrennt</b> (z. B. mt76): „Eigenes Netz“ ist der Verkehr im Funknetz '+
+        'dieses Access Points; bei einem Messpunkt (WLAN-Client) das Netz, mit dem er verbunden ist – '+
+        'mit allen Geräten darin.');
+    if (utilModesSeen.rx_tx)
+      notes.push('<b>Eigen/fremd nicht unterscheidbar</b> (z. B. ath9k): Der Chip meldet nur die gesamte '+
+        'Empfangszeit. „Empfang“ umfasst alle WLANs auf dem Kanal – eigene und fremde zusammen.');
+    if (notes.length) parts.push('<div class="util-notes">'+notes.join('<br>')+'</div>');
     utilList.innerHTML = parts.join('');
   }
 

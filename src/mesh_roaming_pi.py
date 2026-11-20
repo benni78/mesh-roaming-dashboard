@@ -304,7 +304,9 @@ STATE = None  # wird in main() gesetzt
 # Messung auch auf einem Router, der nur als WLAN-Client im Netz haengt, und
 # mit beliebigen Interface-Namen (wlan0, mesh0, ...). Je phy entsteht ein
 # Abschnitt "===SURVEY <phy> <ifname> <typ>===", bei Client-/AP-Interfaces
-# gefolgt von "SSID=<name>" (das Netz, in dem der Messpunkt Client ist).
+# gefolgt von "SSID=<name>" (das Netz, in dem der Messpunkt Client ist) und
+# "DRIVER=<treiber>" (z. B. ath9k, mt7915e - zeigt, ob der Chip eigenen und
+# fremden Verkehr trennen kann, #10).
 SURVEY_SHELL = (
     "iw dev 2>/dev/null | awk '"
     "/^phy#/{p=\"phy\" substr($1,5)} "
@@ -312,7 +314,10 @@ SURVEY_SHELL = (
     "$1==\"ssid\"{s=substr($0, index($0, \"ssid \")+5)} "
     "$1==\"type\"{if(!(p in seen)){seen[p]=1; print p, i, $2, s}}' "
     "| while read p i t s; do echo \"===SURVEY $p $i $t===\"; "
-    "[ -n \"$s\" ] && echo \"SSID=$s\"; iw dev \"$i\" survey dump 2>/dev/null; done"
+    "[ -n \"$s\" ] && echo \"SSID=$s\"; "
+    "d=$(readlink /sys/class/ieee80211/$p/device/driver 2>/dev/null); "
+    "[ -n \"$d\" ] && echo \"DRIVER=${d##*/}\"; "
+    "iw dev \"$i\" survey dump 2>/dev/null; done"
 )
 
 
@@ -444,7 +449,8 @@ def parse_survey_output(lines):
         stripped = line.strip()
         m = _SURVEY_HEAD_RE.match(stripped)
         if m:
-            current = {"phy": m.group(1), "ifname": m.group(2), "iftype": m.group(3), "ssid": None, "lines": []}
+            current = {"phy": m.group(1), "ifname": m.group(2), "iftype": m.group(3), "ssid": None,
+                       "driver": None, "lines": []}
             blocks.append(current)
             continue
         if stripped == "===DONE===":
@@ -453,6 +459,8 @@ def parse_survey_output(lines):
         if current is not None:
             if stripped.startswith("SSID=") and not current["lines"]:
                 current["ssid"] = stripped[5:] or None
+            elif stripped.startswith("DRIVER=") and not current["lines"]:
+                current["driver"] = stripped[7:] or None
             else:
                 current["lines"].append(line)
     for b in blocks:
@@ -460,6 +468,7 @@ def parse_survey_output(lines):
         if sample is not None:
             sample.update({
                 "ifname": b["ifname"], "iftype": b["iftype"], "ssid": b["ssid"],
+                "driver": b["driver"],
                 "band": band_for_freq(sample["freq_mhz"]),
                 "channel": channel_for_freq(sample["freq_mhz"]),
             })
@@ -871,7 +880,7 @@ class MeshState:
                     dq.popleft()
                 computed = self._compute_util(dq)
                 if computed is not None:
-                    for key in ("band", "channel", "ifname", "iftype", "ssid", "noise_dbm"):
+                    for key in ("band", "channel", "ifname", "iftype", "ssid", "noise_dbm", "driver"):
                         computed[key] = sample.get(key)
                 router_latest[phy] = computed
 
@@ -1152,6 +1161,9 @@ def mqtt_base_cmd():
 #   .../rx, .../tx, .../other, .../free   Treiber ohne (ath9k), s. _compute_util
 #   .../noise                             Rauschen, dBm
 #   .../channel                           aktueller Kanal
+#   .../mode                              own_foreign (Chip trennt eigen/fremd)
+#                                         oder rx_tx (Chip kann das nicht), #10
+#   .../driver                            WLAN-Treiber, z. B. ath9k, mt7915e
 # <band> ist 2g/5g/6g; haben zwei Funkkarten eines Routers dasselbe Band,
 # wird stattdessen der phy-Name (phy0, phy1, ...) verwendet.
 _UTIL_MQTT_FIELDS = {
@@ -1172,7 +1184,8 @@ def util_mqtt_values(util):
             band = v.get("band")
             key = band if band and bands.count(band) == 1 else phy
             prefix = "%s/util/%s" % (rid, key)
-            fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("channel", "channel")]
+            fields = [("busy", "busy_pct"), ("noise", "noise_dbm"), ("channel", "channel"),
+                      ("mode", "mode"), ("driver", "driver")]
             fields += list(_UTIL_MQTT_FIELDS.get(v.get("mode"), ()))
             for name, field in fields:
                 if v.get(field) is not None:

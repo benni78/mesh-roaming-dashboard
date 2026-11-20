@@ -230,11 +230,13 @@ the WiFi driver:
 
 | Driver reports … | Examples | Split |
 |---|---|---|
-| `channel BSS receive time` | mt76 (MediaTek) | **own use** (own BSS received + sent) · **foreign use** (neighbouring networks) · free |
-| no BSS receive time | ath9k (e.g. AR9340, AR9580) | **transmit** · **receive** (own network and neighbours together) · **interference** (busy, but no decodable WiFi frame: other radio technology, too weak or collided frames) · free |
+| `channel BSS receive time` | mt76 (MediaTek) | **own network** (own BSS received + sent; on a client interface the connected network including all its devices) · **foreign networks** · free |
+| no BSS receive time | ath9k (e.g. AR9340, AR9580) | **transmit** · **receive** (all WiFi networks on the channel – own and foreign together, cannot be separated) · **interference** (busy, but no decodable WiFi frame: other radio technology, too weak or collided frames) · free |
 
 Each band also shows the channel, total busy time and noise; for a client
-interface also the network it is connected to.
+interface also the network it is connected to. Below each band the WiFi
+driver is shown together with whether it can separate own and foreign
+traffic.
 
 **Setting up a measuring point:** add the router like any other (SSH key,
 IP, map position) and set the role to "Messpunkt" (LuCI: Routers → Edit →
@@ -259,6 +261,8 @@ With `mqtt.broker` set, the service publishes every
 | `<base>/<router>/util/<band>/free` | free, % |
 | `<base>/<router>/util/<band>/noise` | noise, dBm |
 | `<base>/<router>/util/<band>/channel` | current channel |
+| `<base>/<router>/util/<band>/mode` | `own_foreign` (chip separates own/foreign) or `rx_tx` (chip cannot) |
+| `<base>/<router>/util/<band>/driver` | WiFi driver, e.g. `ath9k`, `mt7915e` |
 
 `<band>` is `2g`, `5g` or `6g`. If a router has two radios in the same
 band, the radio name (`phy0`, `phy1`, …) is used instead. Values the driver

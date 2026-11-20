@@ -241,11 +241,13 @@ aufgeteilt wird, hängt vom WLAN-Treiber ab:
 
 | Treiber liefert … | Beispiele | Aufteilung |
 |---|---|---|
-| `channel BSS receive time` | mt76 (MediaTek) | **eigene Nutzung** (eigenes BSS empfangen + senden) · **fremde Nutzung** (Nachbarnetze) · frei |
-| keine BSS-Empfangszeit | ath9k (z. B. AR9340, AR9580) | **Senden** · **Empfang** (eigenes Netz und Nachbarn zusammen) · **Störung** (belegt, aber kein lesbarer WLAN-Frame: andere Funktechnik, zu schwache oder kollidierte Frames) · frei |
+| `channel BSS receive time` | mt76 (MediaTek) | **eigenes Netz** (eigenes BSS empfangen + senden; bei einem Client-Interface das verbundene Netz mit allen Geräten darin) · **fremde Netze** · frei |
+| keine BSS-Empfangszeit | ath9k (z. B. AR9340, AR9580) | **Senden** · **Empfang** (alle WLANs auf dem Kanal – eigene und fremde zusammen, nicht trennbar) · **Störung** (belegt, aber kein lesbarer WLAN-Frame: andere Funktechnik, zu schwache oder kollidierte Frames) · frei |
 
 Zusätzlich stehen bei jedem Band Kanal, Gesamtbelegung und Rauschen; bei
-einem Client-Interface auch das WLAN, mit dem es verbunden ist.
+einem Client-Interface auch das WLAN, mit dem es verbunden ist. Unter jedem
+Band steht der WLAN-Treiber und ob er eigenen und fremden Verkehr trennen
+kann („eigen/fremd getrennt gemessen“ bzw. „nicht unterscheidbar“).
 
 **Messpunkt einrichten:** Router wie jeden anderen eintragen (SSH-Schlüssel,
 IP, Kartenposition) und die Rolle auf „Messpunkt“ setzen (LuCI: Router →
@@ -270,6 +272,8 @@ Mit gesetztem `mqtt.broker` sendet der Dienst alle
 | `<base>/<router>/util/<band>/free` | frei, % |
 | `<base>/<router>/util/<band>/noise` | Rauschen, dBm |
 | `<base>/<router>/util/<band>/channel` | aktueller Kanal |
+| `<base>/<router>/util/<band>/mode` | `own_foreign` (Chip trennt eigen/fremd) oder `rx_tx` (Chip kann das nicht) |
+| `<base>/<router>/util/<band>/driver` | WLAN-Treiber, z. B. `ath9k`, `mt7915e` |
 
 `<band>` ist `2g`, `5g` oder `6g`. Hat ein Router zwei Funkkarten im
 selben Band, steht dort stattdessen der Name der Funkkarte (`phy0`,

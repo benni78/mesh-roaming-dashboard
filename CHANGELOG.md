@@ -16,6 +16,13 @@
   `.post-upgrade` auf), der Dienst lief mit dem alten Code weiter. Die
   `.apk`-Pakete enthalten jetzt beide Skripte (lokale Änderung 3 am
   übernommenen `openwrt-ipk2apk`).
+- **Kanalauslastung: Fähigkeit des WLAN-Chips sichtbar** (Issue #10): Je
+  Funkband steht der Treiber und ob er eigenen und fremden Verkehr trennen
+  kann. Bei Chips ohne BSS-Empfangszeit (ath9k) heißt der Empfangsanteil
+  jetzt „Empfang (alle WLANs auf dem Kanal)“ statt „eigenes Netz +
+  Nachbarn“, bei Client-Interfaces heißt der eigene Anteil „verbundenes
+  Netz“. Kurze Erklärungen unter der Legende. Neue MQTT-Werte
+  `…/util/<band>/mode` und `…/driver`.
 
 ### 1.3 (Pakete 1.3-r2)
 
