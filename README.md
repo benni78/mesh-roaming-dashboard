@@ -30,187 +30,6 @@ Code-Kommentare sind auf Deutsch.
 *Beispielansicht mit frei erfundenen Testdaten (Router, Clients und Werte
 aus `examples/config.example.json`) – keine echten Netzwerkdaten.*
 
-## ⚠ Datenschutz-Hinweis (DSGVO): Dieses Tool erstellt ein personenbezogenes Bewegungsprofil
-
-**Dieser Abschnitt ist kein Zubehör, sondern Voraussetzung für den Einsatz.**
-Bitte vollständig lesen, bevor dieses Tool im eigenen Netzwerk installiert
-wird – insbesondere, wenn im Netzwerk auch Geräte anderer Personen
-(Familie, Mitbewohner, Mieter, Gäste, Besuch, ggf. Mitarbeitende) laufen.
-
-### Was dieses Tool tatsächlich erfasst
-
-Für jedes Gerät, das sich mit einem der überwachten Router verbindet,
-zeichnet der Dienst laufend auf:
-
-- an welchem Router/Access Point (und damit an welchem Ort/Raum, sofern
-  die Router-Karte entsprechend eingerichtet ist) das Gerät aktuell
-  verbunden ist,
-- an welchen weiteren Access Points es zusätzlich empfangbar ist
-  (inklusive Signalstärke – ein Näherungsmaß für die Entfernung),
-- jeden Wechsel des Access Points samt Zeitpunkt (Connect-/Roam-/
-  Disconnect-Ereignisse, zentral protokolliert in einer SQLite-Datenbank,
-  die einen Dienst-Neustart überlebt),
-- optional einen vom Betreiber vergebenen Klarnamen/Nickname pro Gerät,
-  der die Zuordnung Gerät → Person ausdrücklich herstellt,
-- aus den DHCP-Leases und der ARP-Tabelle der Router Hostname und IP-Adresse
-  **aller** Geräte im Netz, auch kabelgebundener. Hostnamen enthalten oft
-  schon einen Personennamen („Annas-iPhone“). Gespeichert werden sie nur für
-  die Aufbewahrungsfrist; an die Weboberfläche gehen nur die Hostnamen der
-  Geräte, die die Karte tatsächlich anzeigt, IP-Adressen gar nicht.
-
-**Seit v22 ist das standardmäßig zeitlich begrenzt, nicht mehr
-unbegrenzt:** Die Konfigurationsoption `privacy.retention_days` (Default:
-7 Tage, per UCI/LuCI unter dem Reiter „Datenschutz" einstellbar) löscht
-alle geräte­bezogenen Daten (MAC-Adresse, Name, IP, Nickname,
-Roaming-Log-Einträge) eines Geräts automatisch und endgültig aus der
-SQLite-Datenbank, sobald es so viele Tage nicht mehr beobachtet wurde –
-nicht nur aus der Anzeige. Zusätzlich führt der Dienst (abschaltbar über
-`privacy.anonymous_stats_enabled`) eine stündliche, **MAC-freie**
-Zusammenfassung (Ereignisanzahl + Ø-Signalstärke je Router/Band) fort, die
-unbegrenzt aufbewahrt wird. **Achtung:** In einem kleinen Haushalt ist diese
-Statistik nicht zuverlässig anonym – wohnt dort nur eine Person, zeigt
-„Connect um 23 Uhr am Router Schlafzimmer“ auch ohne MAC-Adresse, wann
-diese Person wo war (siehe „Bekannte Grenzen“ unten). Über `POST /api/erase {"mac": "..."}` lässt sich
-die Löschung für ein einzelnes Gerät jederzeit sofort auslösen (Art. 17
-DSGVO), unabhängig von der Frist. Das ändert nichts an den folgenden
-Abschnitten: **während der Aufbewahrungsfrist** entsteht weiterhin ein
-personenbezogenes Bewegungsprofil, und die Rechtsgrundlage dafür (s. u.)
-braucht es trotzdem.
-
-### Warum das ein personenbezogenes Bewegungsprofil ist
-
-WLAN-fähige Geräte (vor allem Smartphones) befinden sich im Alltag
-praktisch ständig bei genau einer Person. Die Kombination aus "welches
-Gerät ist wann an welchem Access Point/Ort", fortlaufend über die Zeit
-gespeichert, ergibt damit faktisch ein Bewegungs- und Aufenthaltsprofil
-der Person, der das Gerät gehört – unabhängig davon, ob ein Klarname
-hinterlegt ist: Schon eine über die Zeit stabile Geräte-MAC-Adresse macht
-eine Person im Sinne der DSGVO re-identifizierbar, ein hinterlegter
-Nickname stellt diesen Bezug zusätzlich ausdrücklich her. Das Dashboard
-ist technisch genau für diesen Zweck gebaut (Sichtbarmachen, wo sich
-welches Gerät/welche Person im überwachten Bereich gerade aufhält und wie
-es sich dort bewegt) – das ist kein Nebeneffekt, sondern die Kernfunktion.
-
-Das betrifft nicht nur die Person, die das Tool installiert: **jede
-Person, deren Gerät sich mit dem überwachten WLAN verbindet**, wird
-erfasst – auch ohne eigenes Wissen oder eigene Zustimmung, sofern nicht
-ausdrücklich dafür gesorgt wird. Das schließt Familienmitglieder,
-Mitbewohner, Mieter separater Einheiten im selben Mesh, Gäste, Besuch und
-– bei Einsatz außerhalb eines rein privaten Haushalts – auch Kunden oder
-Mitarbeitende ein.
-
-### Rechtliche Einordnung (Überblick, keine Rechtsberatung)
-
-- Standort-/Bewegungsdaten einer identifizierbaren natürlichen Person sind
-  personenbezogene Daten im Sinne von Art. 4 Nr. 1 DSGVO. Werden sie dazu
-  verwendet, Aufenthalts- oder Bewegungsmuster einer Person zu analysieren
-  oder vorherzusagen, kann das zusätzlich als Profiling nach Art. 4 Nr. 4
-  DSGVO einzuordnen sein.
-- Jede Verarbeitung braucht eine Rechtsgrundlage nach Art. 6 DSGVO. In
-  einem gemeinsam genutzten Netzwerk mit mehreren Personen kommt dafür in
-  der Praxis meist nur eine informierte Einwilligung aller betroffenen
-  Personen in Betracht (Art. 6 Abs. 1 lit. a DSGVO) – ein überwiegendes
-  berechtigtes Interesse des Betreibers (Art. 6 Abs. 1 lit. f DSGVO) wird
-  bei einem derart detaillierten, dauerhaft gespeicherten Bewegungsprofil
-  anderer Personen regelmäßig schwer zu begründen sein.
-- Die sogenannte Haushaltsausnahme (Art. 2 Abs. 2 lit. c DSGVO) gilt nur
-  für die Verarbeitung durch eine natürliche Person zu ausschließlich
-  persönlichen oder familiären Zwecken – sie entfällt, sobald das Tool
-  Personen außerhalb dieses engen Kreises erfasst (z. B. Mieter einer
-  separaten Wohneinheit, Gäste, oder jeglicher Einsatz in einem
-  geschäftlichen/beruflichen Kontext).
-- Werden betroffene Personen informiert, greifen zusätzlich die
-  Transparenzpflichten aus Art. 13/14 DSGVO (wer wird worüber informiert)
-  sowie die Grundsätze der Datenminimierung und Speicherbegrenzung
-  (Art. 5 DSGVO) und die Betroffenenrechte (u. a. Auskunft, Löschung,
-  Art. 15/17 DSGVO).
-- Bei Einsatz im Beschäftigungskontext sind zusätzlich § 26 BDSG und ggf.
-  Mitbestimmungsrechte der Arbeitnehmervertretung zu prüfen.
-- Eine heimliche, nicht offengelegte Standortüberwachung von Personen
-  ohne deren Kenntnis (z. B. von Mietern oder Mitbewohnern) kann je nach
-  Ausgestaltung und Rechtsordnung über das Datenschutzrecht hinaus auch
-  strafrechtlich relevant sein.
-
-### Praktische Empfehlungen (freiwillig, aber dringend angeraten)
-
-- Alle Personen, deren Geräte das überwachte WLAN nutzen (könnten), vor
-  Inbetriebnahme aktiv informieren und – wo möglich – deren Einwilligung
-  einholen; keine heimliche Überwachung.
-- Zugriff auf das Dashboard einschränken: Der Dienst hat **keine
-  Anmeldung** (siehe „Bekannte Grenzen“). Den Port (Standard 8765) nur aus
-  dem vertrauenswürdigen Netz erreichbar machen, z. B. `http.bind` bzw.
-  UCI `bind` auf die LAN-IP setzen statt `0.0.0.0` und sicherstellen, dass
-  Gast-WLAN/IoT-Netze per Firewall keinen Zugriff auf den Router bzw. Pi
-  haben. Für mehr Schutz einen Reverse-Proxy mit Authentifizierung
-  vorschalten.
-- Speicherdauer aktiv begrenzen: `privacy.retention_days` (Default 7
-  Tage) löscht geräte­bezogene Daten automatisch aus der SQLite-Datenbank,
-  nicht nur aus der Anzeige – anders als `log_max_entries`, das weiterhin
-  nur eine Anzahl-Sicherheitsgrenze ist, keine Zeitgrenze. Frist so kurz
-  wie für den eigenen Zweck (z. B. Fehlersuche) nötig wählen.
-- In kleinen Haushalten `privacy.anonymous_stats_enabled` abschalten, wenn
-  keine Langzeit-Trends gebraucht werden.
-- Bei aktivem MQTT auch die Aufbewahrung in openHAB/InfluxDB begrenzen
-  (Retention Policy), denn dort landet die Client-Anzahl je Router
-  dauerhaft – und damit, wer wann in welchem Raum war.
-- Auf die Nickname/Umbenennen-Funktion verzichten, wenn eine
-  ausdrückliche Re-Identifizierung von Personen vermieden werden soll.
-- Betrieb auf den tatsächlich benötigten Personenkreis und Zeitraum
-  beschränken statt dauerhaft alle Geräte zu erfassen.
-- Bei jedem Einsatz außerhalb eines rein privaten, familiären Haushalts
-  (siehe Haushaltsausnahme oben) vorab rechtlichen Rat (Datenschutz-
-  beauftragte/r, Rechtsanwalt/Rechtsanwältin) einholen.
-
-### Technische Schutzmaßnahmen (Stand 1.1)
-
-- **Speicherbegrenzung:** geräte­bezogene Daten werden nach
-  `privacy.retention_days` ohne Beobachtung aus der Datenbank gelöscht,
-  einzelne Geräte sofort über `POST /api/erase`. SQLite läuft mit
-  `secure_delete`, gelöschte Daten bleiben also nicht als Reste in der
-  Datei stehen.
-- **Dateirechte:** Datenbank, `config.json` (enthält ggf. das
-  MQTT-Passwort), `known_hosts` und die MQTT-Optionsdatei sind nur für den
-  Dienst lesbar (0600).
-- **Keine Drittanbieter:** Die Weboberfläche lädt keine externen Schriften,
-  Skripte oder CDNs – der Browser der Betrachter spricht nur mit dem
-  Dienst selbst.
-- **Datenminimierung in der Ausgabe:** `/data.json` enthält keine
-  IP-Adressen und Hostnamen nur für Geräte, die auf der Karte erscheinen.
-  `/config.json` und `/api/status` (Statusspalte in LuCI) enthalten keine
-  Gerätedaten.
-- **Schutz gegen fremde Webseiten (CSRF):** `POST /api/rename` und
-  `/api/erase` nehmen nur Anfragen mit `Content-Type: application/json`
-  und passender Herkunft an. Eine fremde Webseite, die jemand im Heimnetz
-  aufruft, kann also keine Geräte umbenennen oder Daten löschen.
-  Kommandozeile: `curl -H 'Content-Type: application/json' -d
-  '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
-- **MQTT:** übertragen werden nur Summen (Clients je Router, Länge des
-  Ereignis-Logs) und die Kanalauslastung, keine MAC-Adressen oder Namen. Zugangsdaten stehen nicht
-  in der Prozessliste; TLS ist möglich und bei einem Broker außerhalb des
-  Routers/Pis empfohlen.
-- **Keine Zugriffsprotokolle:** Der Webserver protokolliert keine Aufrufe
-  (keine IP-Adressen der Betrachter im Log).
-
-### Bekannte Grenzen
-
-- **Keine Anmeldung:** Wer den Port erreicht, sieht live, welches Gerät in
-  welchem Raum ist, und kann Geräte umbenennen oder ihre Daten löschen.
-  Schutz nur über Netzwerk/Firewall bzw. Reverse-Proxy (siehe oben).
-- **Anonyme Statistik:** wird unbegrenzt aufbewahrt und ist in kleinen
-  Haushalten auf einzelne Personen rückführbar.
-- **Löschen eines verbundenen Geräts:** `POST /api/erase` löscht die
-  gespeicherten Daten, ein weiterhin verbundenes Gerät wird beim nächsten
-  Abruf aber wieder erfasst. Dauerhaft hilft nur, das Gerät aus dem
-  überwachten WLAN zu nehmen.
-- **Router-Zugang:** Der Dienst meldet sich per SSH als `root` mit einem
-  Schlüssel an allen Routern an. Wer den Schlüssel hat, hat die Router –
-  Datei nur für root lesbar halten (`chmod 600`).
-
-**Dieser Abschnitt ersetzt keine Rechtsberatung.** Die tatsächliche
-datenschutzrechtliche Bewertung hängt vom konkreten Einzelfall ab
-(Einsatzkontext, betroffene Personen, anwendbares nationales Recht). Im
-Zweifel vor dem Einsatz fachkundigen Rat einholen.
-
 ## Funktionsumfang
 
 - Live-Karte mit Routern, Clients und Roaming-Pfeilen auf einem frei
@@ -385,7 +204,164 @@ selben Band, steht dort stattdessen der Name der Funkkarte (`phy0`,
 Voraussetzung auf den Routern: OpenWrt mit `usteer` und `hostapd`
 (Standard bei den meisten aktuellen Mesh-Setups).
 
+## Datenschutz-Hinweis (DSGVO)
+
+Das Dashboard zeigt, welches Gerät wann an welchem Access Point verbunden
+ist, und speichert diesen Verlauf für eine begrenzte Zeit. Weil Smartphones
+und andere WLAN-Geräte fast immer bei einer bestimmten Person sind, sind
+das personenbezogene Daten. Bitte dieses Kapitel vor dem Einsatz lesen –
+besonders, wenn im Netzwerk auch Geräte anderer Personen laufen (Familie,
+Mitbewohner, Mieter, Gäste, ggf. Mitarbeitende).
+
+### Welche Daten verarbeitet werden
+
+Für jedes Gerät, das sich mit einem überwachten Access Point verbindet:
+
+- an welchem Router/Access Point (und damit in welchem Raum, sofern die
+  Karte so eingerichtet ist) es gerade verbunden ist,
+- an welchen weiteren Access Points es zusätzlich empfangbar ist, mit
+  Signalstärke (ein Näherungsmaß für die Entfernung),
+- jeder Wechsel des Access Points mit Zeitpunkt (Connect/Roam/Disconnect),
+  gespeichert in einer SQLite-Datenbank,
+- optional ein vom Betreiber vergebener Name (Nickname), der die Zuordnung
+  Gerät → Person ausdrücklich herstellt,
+- Hostname und IP-Adresse aus den DHCP-Leases und der ARP-Tabelle der
+  Router, auch für kabelgebundene Geräte. Hostnamen enthalten oft schon
+  einen Personennamen („Annas-iPhone“). An die Weboberfläche gehen nur die
+  Hostnamen der Geräte, die die Karte anzeigt, IP-Adressen gar nicht.
+
+Nicht betroffen sind **Messpunkte** (Router mit der Rolle „Messpunkt“):
+Von ihnen fragt der Dienst keine Client-Listen, DHCP-Leases oder
+ARP-Tabellen ab, nur die Kanalauslastung.
+
+Weitere Daten, die **nicht gespeichert** werden, sondern nur im
+Arbeitsspeicher des Dienstes liegen:
+
+- **Sende-/Empfangszeit je verbundener Station** (`iw station dump`): Die
+  MAC-Adressen dienen nur der Differenzbildung für die Kanalauslastung,
+  angezeigt oder weitergegeben werden nur Summen.
+- **WLAN-Scan der Nachbarkanäle:** SSID, Signal und Kanal der Netze in der
+  Umgebung, auch fremder. SSIDs sind öffentlich ausgesendete Kennungen von
+  Access Points, keine Gerätedaten; sie verfallen nach `scan.max_age_sec`.
+  Die Seite zeigt sie sichtbar im Spektrum, aber keine BSSIDs. Ein
+  Netzname kann trotzdem auf eine Person schließen lassen (z. B.
+  „Familie Müller“).
+
+**Aufbewahrung:** Standardmäßig löscht `privacy.retention_days` (7 Tage,
+in LuCI unter „Datenschutz“ einstellbar) alle gerätebezogenen Daten (MAC,
+Name, IP, Nickname, Log-Einträge) eines Geräts endgültig aus der Datenbank,
+sobald es so lange nicht mehr gesehen wurde. Über
+`POST /api/erase {"mac": "..."}` lassen sich die Daten eines Geräts sofort
+löschen (Art. 17 DSGVO). Zusätzlich führt der Dienst eine stündliche
+Statistik ohne MAC-Adressen (Ereignisanzahl und mittlere Signalstärke je
+Router und Band), die unbegrenzt aufbewahrt wird
+(`privacy.anonymous_stats_enabled`, abschaltbar). In einem kleinen Haushalt
+ist auch sie auf einzelne Personen rückführbar: Wohnt dort nur eine Person,
+zeigt „Connect um 23 Uhr am Router Schlafzimmer“ auch ohne MAC-Adresse,
+wann sie wo war.
+
+### Warum das personenbezogene Daten sind
+
+Die Kombination „welches Gerät war wann an welchem Access Point“, über die
+Zeit gespeichert, ergibt ein Aufenthaltsprofil der Person, die das Gerät
+bei sich trägt – auch ohne hinterlegten Namen: Schon eine über die Zeit
+stabile MAC-Adresse macht eine Person im Sinne der DSGVO
+re-identifizierbar. Das ist kein Nebeneffekt, sondern die Kernfunktion des
+Dashboards (sichtbar machen, wo welches Gerät gerade ist und wie es
+roamt).
+
+Erfasst wird **jede Person, deren Gerät sich mit dem überwachten WLAN
+verbindet** – nicht nur die Person, die das Dashboard betreibt.
+
+### Rechtliche Einordnung (Überblick, keine Rechtsberatung)
+
+- Standort- und Bewegungsdaten einer identifizierbaren Person sind
+  personenbezogene Daten (Art. 4 Nr. 1 DSGVO). Werden Aufenthalts- oder
+  Bewegungsmuster ausgewertet, kann das zusätzlich Profiling sein
+  (Art. 4 Nr. 4 DSGVO).
+- Jede Verarbeitung braucht eine Rechtsgrundlage (Art. 6 DSGVO). In einem
+  gemeinsam genutzten Netz kommt in der Praxis meist nur die informierte
+  Einwilligung aller Betroffenen in Betracht (Art. 6 Abs. 1 lit. a); ein
+  berechtigtes Interesse (lit. f) ist bei einem dauerhaft gespeicherten
+  Bewegungsprofil anderer Personen schwer zu begründen.
+- Die Haushaltsausnahme (Art. 2 Abs. 2 lit. c DSGVO) gilt nur für
+  ausschließlich persönliche oder familiäre Zwecke. Sie entfällt, sobald
+  Personen außerhalb dieses Kreises erfasst werden (z. B. Mieter einer
+  separaten Wohnung, Gäste) oder das Dashboard beruflich eingesetzt wird.
+- Es gelten die Grundsätze der Datenminimierung und Speicherbegrenzung
+  (Art. 5), die Informationspflichten (Art. 13/14) und die
+  Betroffenenrechte, u. a. Auskunft und Löschung (Art. 15/17).
+- Im Beschäftigungskontext sind zusätzlich § 26 BDSG und ggf. die
+  Mitbestimmung der Arbeitnehmervertretung zu beachten.
+- Eine heimliche Standortüberwachung anderer Personen kann über das
+  Datenschutzrecht hinaus auch strafrechtlich relevant sein.
+
+### Empfehlungen für den Betrieb
+
+- Alle Personen, deren Geräte das WLAN nutzen, vorher informieren und wo
+  nötig ihre Einwilligung einholen – keine heimliche Überwachung.
+- Zugriff einschränken: Der Dienst hat **keine Anmeldung**. Port 8765 nur
+  aus dem vertrauenswürdigen Netz erreichbar machen, z. B. `http.bind`
+  (UCI `bind`) auf die LAN-IP statt `0.0.0.0` setzen und Gast-/IoT-Netze
+  per Firewall fernhalten. Für mehr Schutz einen Reverse-Proxy mit
+  Anmeldung vorschalten.
+- Aufbewahrung so kurz wie nötig wählen (`privacy.retention_days`); in
+  kleinen Haushalten die anonyme Statistik abschalten, wenn keine
+  Langzeit-Trends gebraucht werden.
+- Bei MQTT auch die Aufbewahrung in openHAB/InfluxDB begrenzen: Dort landet
+  dauerhaft die Client-Anzahl je Router – und damit, wann in welchem Raum
+  jemand war.
+- Auf Nicknames verzichten, wenn eine ausdrückliche Zuordnung zu Personen
+  vermieden werden soll.
+- Router, die nur die Funkumgebung messen sollen, als **Messpunkt**
+  eintragen; dann werden dort keine Client-Daten abgefragt.
+- Außerhalb eines rein privaten Haushalts vorab rechtlichen Rat einholen
+  (Datenschutzbeauftragte/r, Anwalt/Anwältin).
+
+### Technische Schutzmaßnahmen (Stand 2.2)
+
+- **Speicherbegrenzung:** automatisches Löschen nach
+  `privacy.retention_days`, sofortiges Löschen über `POST /api/erase`;
+  SQLite mit `secure_delete`, gelöschte Daten bleiben nicht als Reste in
+  der Datei.
+- **Dateirechte:** Datenbank, `config.json` (ggf. mit MQTT-Passwort),
+  `known_hosts` und die MQTT-Optionsdatei sind nur für den Dienst lesbar
+  (0600).
+- **Keine Drittanbieter:** Die Weboberfläche lädt keine externen Schriften,
+  Skripte oder CDNs.
+- **Datenminimierung in der Ausgabe:** `/data.json` enthält keine
+  IP-Adressen und Hostnamen nur für Geräte auf der Karte; WLAN-Scan ohne
+  BSSIDs; Stationszeiten nur als Summen. `/config.json`, `/api/status` und
+  die LuCI-Seiten enthalten keine Gerätedaten.
+- **Schutz gegen fremde Webseiten (CSRF):** `POST /api/rename` und
+  `/api/erase` nehmen nur `Content-Type: application/json` mit passender
+  Herkunft an. Kommandozeile: `curl -H 'Content-Type: application/json' -d
+  '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
+- **MQTT:** nur Summen und Funkwerte (Clients je Router, Länge des
+  Ereignis-Logs, Kanalauslastung, Nachbarkanäle), keine MAC-Adressen oder
+  Gerätenamen. Zugangsdaten stehen nicht in der Prozessliste; TLS ist
+  möglich und bei einem Broker außerhalb des Routers/Pis empfohlen.
+- **Keine Zugriffsprotokolle:** Der Webserver protokolliert keine Aufrufe.
+
+### Bekannte Grenzen
+
+- **Keine Anmeldung:** Wer den Port erreicht, sieht live, welches Gerät in
+  welchem Raum ist, und kann Geräte umbenennen oder ihre Daten löschen.
+- **Anonyme Statistik:** unbegrenzt aufbewahrt, in kleinen Haushalten
+  rückführbar.
+- **Löschen eines verbundenen Geräts:** `POST /api/erase` löscht die
+  gespeicherten Daten, ein weiterhin verbundenes Gerät wird aber beim
+  nächsten Abruf wieder erfasst.
+- **Router-Zugang:** Der Dienst meldet sich per SSH als `root` an den
+  Routern an. Wer den Schlüssel hat, hat die Router – Datei nur für root
+  lesbar halten (`chmod 600`).
+
+Dieses Kapitel ersetzt keine Rechtsberatung; die Bewertung hängt vom
+Einzelfall ab (Einsatzkontext, betroffene Personen, nationales Recht).
+
 ## Schnellstart (OpenWrt, direkt auf einem Mesh-Router)
+
+Vor dem Einsatz bitte das Kapitel [Datenschutz-Hinweis (DSGVO)](#datenschutz-hinweis-dsgvo) lesen.
 
 **Wichtig – zuerst prüfen, welchen Paketmanager der Router hat**
 (`opkg --version` bzw. `apk --version`): Seit OpenWrt 25.12 ist `apk`
@@ -460,6 +436,8 @@ UCI, SSH-Schlüssel, Deinstallation):
 [`docs/deployment-openwrt.md`](docs/deployment-openwrt.md).
 
 ## Schnellstart (Raspbian/Debian, z. B. neben openHAB)
+
+Vor dem Einsatz bitte das Kapitel [Datenschutz-Hinweis (DSGVO)](#datenschutz-hinweis-dsgvo) lesen.
 
 Siehe [`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md)
 für die vollständige Anleitung (Dienst-Nutzer, Konfiguration, SSH-Schlüssel,

@@ -31,176 +31,6 @@ comments are in German.
 *Example view with made-up test data (routers, clients and values from
 `examples/config.example.json`) — no real network data.*
 
-## ⚠ Privacy notice (GDPR): this tool creates a personal movement profile
-
-**This section is not an add-on, it is a prerequisite for using the tool.**
-Please read it completely before installing the tool on your network —
-especially if devices of other people (family, flatmates, tenants, guests,
-visitors, possibly employees) use that network.
-
-### What this tool actually records
-
-For every device that connects to one of the monitored routers, the service
-continuously records:
-
-- which router/access point the device is currently connected to (and thus
-  which place/room, if the router map is set up accordingly),
-- which other access points can also receive it (including signal
-  strength — an approximation of distance),
-- every change of access point with its time (connect/roam/disconnect
-  events, logged centrally in an SQLite database that survives a service
-  restart),
-- optionally a real name/nickname per device assigned by the operator,
-  which explicitly links device → person,
-- from the routers' DHCP leases and ARP table, the hostname and IP address
-  of **all** devices on the network, including wired ones. Hostnames often
-  already contain a person's name ("Annas-iPhone"). They are only stored
-  for the retention period; the web interface only receives the hostnames
-  of devices actually shown on the map, and no IP addresses at all.
-
-**Since v22 this is time-limited by default, no longer unlimited:** the
-configuration option `privacy.retention_days` (default: 7 days, adjustable
-via UCI/LuCI on the "Datenschutz" (privacy) tab) automatically and
-permanently deletes all device-related data (MAC address, name, IP,
-nickname, roaming log entries) of a device from the SQLite database once it
-has not been seen for that many days — not just from the display. In
-addition, the service keeps (can be disabled via
-`privacy.anonymous_stats_enabled`) an hourly, **MAC-free** summary (number
-of events + average signal strength per router/band), which is kept
-indefinitely. **Caution:** in a small household this statistic is not
-reliably anonymous — if only one person lives there, "connect at 11 pm at
-the bedroom router" shows when this person was where, even without a MAC
-address (see "Known limitations" below). `POST /api/erase {"mac": "..."}`
-deletes the data of a single device immediately at any time (Art. 17 GDPR),
-regardless of the retention period. This does not change the following
-sections: **during the retention period** a personal movement profile is
-still created, and a legal basis for it (see below) is still required.
-
-### Why this is a personal movement profile
-
-WiFi-capable devices (smartphones above all) are practically always with
-exactly one person in everyday life. The combination of "which device was
-at which access point/place when", stored continuously over time, therefore
-effectively results in a movement and location profile of the person who
-owns the device — regardless of whether a real name is stored: a device MAC
-address that is stable over time already makes a person re-identifiable
-within the meaning of the GDPR, and a stored nickname makes this link
-explicit. The dashboard is technically built for exactly this purpose
-(showing where which device/person currently is in the monitored area and
-how it moves there) — this is not a side effect, it is the core function.
-
-This does not only affect the person who installs the tool: **every person
-whose device connects to the monitored WiFi** is recorded — even without
-their knowledge or consent, unless this is explicitly arranged. This
-includes family members, flatmates, tenants of separate units in the same
-mesh, guests, visitors and — when used outside a purely private
-household — customers or employees.
-
-### Legal assessment (overview, not legal advice)
-
-- Location/movement data of an identifiable natural person is personal data
-  within the meaning of Art. 4(1) GDPR. If it is used to analyse or predict
-  a person's location or movement patterns, this may additionally qualify
-  as profiling under Art. 4(4) GDPR.
-- Every processing operation needs a legal basis under Art. 6 GDPR. In a
-  shared network with several people, in practice this usually means the
-  informed consent of everyone affected (Art. 6(1)(a) GDPR) — an overriding
-  legitimate interest of the operator (Art. 6(1)(f) GDPR) will regularly be
-  hard to justify for such a detailed, persistently stored movement profile
-  of other people.
-- The so-called household exemption (Art. 2(2)(c) GDPR) only applies to
-  processing by a natural person for purely personal or household
-  purposes — it no longer applies as soon as the tool records people
-  outside this narrow circle (e.g. tenants of a separate unit, guests, or
-  any use in a business/professional context).
-- If affected people are informed, the transparency obligations of
-  Art. 13/14 GDPR apply as well, together with the principles of data
-  minimisation and storage limitation (Art. 5 GDPR) and the data subject
-  rights (including access and erasure, Art. 15/17 GDPR).
-- In an employment context, § 26 BDSG (German Federal Data Protection Act)
-  and any co-determination rights of employee representatives must also be
-  considered.
-- Covert, undisclosed location monitoring of people without their
-  knowledge (e.g. of tenants or flatmates) may, depending on the
-  circumstances and jurisdiction, also be relevant under criminal law, not
-  just data protection law.
-
-### Practical recommendations (voluntary, but strongly advised)
-
-- Actively inform everyone whose devices use (or could use) the monitored
-  WiFi before going live and — where possible — obtain their consent; no
-  covert monitoring.
-- Restrict access to the dashboard: the service has **no login** (see
-  "Known limitations"). Make the port (default 8765) reachable only from
-  the trusted network, e.g. set `http.bind` or the UCI option `bind` to the
-  LAN IP instead of `0.0.0.0`, and make sure guest WiFi/IoT networks cannot
-  reach the router or Pi through the firewall. For more protection, put a
-  reverse proxy with authentication in front of it.
-- Actively limit the storage period: `privacy.retention_days` (default
-  7 days) automatically deletes device-related data from the SQLite
-  database, not just from the display — unlike `log_max_entries`, which is
-  still only a safety limit on the number of entries, not a time limit.
-  Choose a period as short as your purpose (e.g. troubleshooting)
-  requires.
-- In small households, disable `privacy.anonymous_stats_enabled` if you do
-  not need long-term trends.
-- If MQTT is enabled, also limit retention in openHAB/InfluxDB (retention
-  policy), because the number of clients per router ends up there
-  permanently — and with it, who was in which room when.
-- Do without the nickname/rename function if explicit re-identification of
-  people is to be avoided.
-- Limit operation to the group of people and time period actually needed
-  instead of permanently recording all devices.
-- For any use outside a purely private household (see household exemption
-  above), get legal advice beforehand (data protection officer, lawyer).
-
-### Technical safeguards (as of 1.1)
-
-- **Storage limitation:** device-related data is deleted from the database
-  after `privacy.retention_days` without being seen; individual devices
-  immediately via `POST /api/erase`. SQLite runs with `secure_delete`, so
-  deleted data does not remain as leftovers in the file.
-- **File permissions:** the database, `config.json` (may contain the MQTT
-  password), `known_hosts` and the MQTT options file are readable by the
-  service only (0600).
-- **No third parties:** the web interface does not load external fonts,
-  scripts or CDNs — the viewer's browser only talks to the service itself.
-- **Data minimisation in the output:** `/data.json` contains no IP
-  addresses, and hostnames only for devices that appear on the map.
-  `/config.json` and `/api/status` (status column in LuCI) contain no
-  device data.
-- **Protection against foreign websites (CSRF):** `POST /api/rename` and
-  `/api/erase` only accept requests with `Content-Type: application/json`
-  and a matching origin. A foreign website opened by someone on the home
-  network therefore cannot rename devices or delete data. Command line:
-  `curl -H 'Content-Type: application/json' -d
-  '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
-- **MQTT:** only totals are sent (clients per router, length of the event
-  log) and the channel utilization, no MAC addresses or names. Credentials do not appear in the process
-  list; TLS is supported and recommended for a broker outside the
-  router/Pi.
-- **No access logs:** the web server does not log requests (no viewer IP
-  addresses in the log).
-
-### Known limitations
-
-- **No login:** anyone who can reach the port sees live which device is in
-  which room, and can rename devices or delete their data. Protection only
-  via network/firewall or a reverse proxy (see above).
-- **Anonymous statistics:** kept indefinitely and traceable to individuals
-  in small households.
-- **Erasing a connected device:** `POST /api/erase` deletes the stored
-  data, but a device that is still connected is recorded again on the next
-  poll. The only permanent fix is to take the device off the monitored
-  WiFi.
-- **Router access:** the service logs in to all routers via SSH as `root`
-  with a key. Whoever has the key has the routers — keep the file readable
-  by root only (`chmod 600`).
-
-**This section is not legal advice.** The actual data protection
-assessment depends on the specific case (context of use, people affected,
-applicable national law). If in doubt, seek expert advice before use.
-
 ## Features
 
 - Live map with routers, clients and roaming arrows on a freely
@@ -373,7 +203,157 @@ does not report are not published.
 Requirement on the routers: OpenWrt with `usteer` and `hostapd` (the
 default in most current mesh setups).
 
+## Privacy notice (GDPR)
+
+The dashboard shows which device is connected to which access point at what
+time and keeps this history for a limited period. Since smartphones and
+other WiFi devices are almost always with one particular person, this is
+personal data. Please read this chapter before using the dashboard –
+especially if devices of other people use the network (family, flatmates,
+tenants, guests, possibly employees).
+
+### What data is processed
+
+For every device that connects to a monitored access point:
+
+- which router/access point (and thus which room, if the map is set up
+  that way) it is currently connected to,
+- which other access points can also receive it, with signal strength (an
+  approximation of distance),
+- every change of access point with its time (connect/roam/disconnect),
+  stored in an SQLite database,
+- optionally a name (nickname) assigned by the operator, which explicitly
+  links device and person,
+- host name and IP address from the routers' DHCP leases and ARP table,
+  also for wired devices. Host names often already contain a person's name
+  ("Annas-iPhone"). The web page only receives the host names of devices
+  shown on the map, and no IP addresses at all.
+
+**Measuring points** (routers with the role "Messpunkt") are not affected:
+the service does not query client lists, DHCP leases or ARP tables from
+them, only channel utilization.
+
+Further data that is **not stored**, only kept in the service's memory:
+
+- **Transmit/receive time per connected station** (`iw station dump`): the
+  MAC addresses are only used to compute differences for channel
+  utilization; only sums are shown or passed on.
+- **WiFi scan of neighbouring channels:** SSID, signal and channel of the
+  networks around, including foreign ones. SSIDs are identifiers broadcast
+  publicly by access points, not device data; they expire after
+  `scan.max_age_sec`. The page shows them visibly in the spectrum, but no
+  BSSIDs. A network name can still point to a person (e.g. "Familie
+  Müller").
+
+**Retention:** by default `privacy.retention_days` (7 days, configurable in
+LuCI under "Datenschutz") permanently deletes all device-related data
+(MAC, name, IP, nickname, log entries) of a device from the database once
+it has not been seen for that long. `POST /api/erase {"mac": "..."}`
+deletes a device's data immediately (Art. 17 GDPR). In addition the service
+keeps an hourly statistic without MAC addresses (number of events and mean
+signal strength per router and band), which is kept indefinitely
+(`privacy.anonymous_stats_enabled`, can be switched off). In a small
+household it can also be traced back to individuals: if only one person
+lives there, "connect at 11 pm at the bedroom router" shows when they were
+where, even without a MAC address.
+
+### Why this is personal data
+
+The combination "which device was at which access point when", stored over
+time, forms a location profile of the person carrying the device – even
+without a name: a MAC address that is stable over time already makes a
+person re-identifiable under the GDPR. This is not a side effect but the
+core function of the dashboard (showing where each device currently is and
+how it roams).
+
+**Every person whose device connects to the monitored WiFi** is recorded –
+not only the person running the dashboard.
+
+### Legal assessment (overview, not legal advice)
+
+- Location and movement data of an identifiable person are personal data
+  (Art. 4(1) GDPR). Analysing whereabouts or movement patterns may also
+  constitute profiling (Art. 4(4) GDPR).
+- Every processing needs a legal basis (Art. 6 GDPR). In a shared network,
+  in practice usually only the informed consent of everyone affected
+  applies (Art. 6(1)(a)); a legitimate interest (point f) is hard to
+  justify for a permanently stored movement profile of other people.
+- The household exemption (Art. 2(2)(c) GDPR) only covers purely personal
+  or household purposes. It no longer applies as soon as people outside
+  that circle are recorded (e.g. tenants of a separate flat, guests) or the
+  dashboard is used professionally.
+- The principles of data minimisation and storage limitation (Art. 5), the
+  information obligations (Art. 13/14) and the data subject rights, e.g.
+  access and erasure (Art. 15/17), apply.
+- In an employment context, national employee data protection law (in
+  Germany § 26 BDSG) and possibly co-determination rights apply as well.
+- Secretly tracking the location of other people may also be relevant
+  under criminal law, beyond data protection law.
+
+### Recommendations for operation
+
+- Inform everyone whose devices use the WiFi beforehand and obtain their
+  consent where necessary – no secret monitoring.
+- Restrict access: the service has **no login**. Make port 8765 reachable
+  only from the trusted network, e.g. set `http.bind` (UCI `bind`) to the
+  LAN IP instead of `0.0.0.0` and keep guest/IoT networks out via the
+  firewall. For more protection put a reverse proxy with authentication in
+  front.
+- Keep retention as short as needed (`privacy.retention_days`); in small
+  households switch off the anonymous statistics if no long-term trends
+  are needed.
+- With MQTT, limit retention in openHAB/InfluxDB as well: the client count
+  per router ends up there permanently – and with it, when someone was in
+  which room.
+- Do without nicknames if an explicit link to persons should be avoided.
+- Add routers that should only measure the radio environment as a
+  **measuring point**; no client data is queried from them.
+- Outside a purely private household, get legal advice beforehand (data
+  protection officer, lawyer).
+
+### Technical safeguards (as of 2.2)
+
+- **Storage limitation:** automatic deletion after
+  `privacy.retention_days`, immediate deletion via `POST /api/erase`;
+  SQLite with `secure_delete`, deleted data does not remain in the file.
+- **File permissions:** database, `config.json` (possibly with the MQTT
+  password), `known_hosts` and the MQTT options file are readable by the
+  service only (0600).
+- **No third parties:** the web page loads no external fonts, scripts or
+  CDNs.
+- **Data minimisation in the output:** `/data.json` contains no IP
+  addresses and host names only for devices on the map; WiFi scan without
+  BSSIDs; station times only as sums. `/config.json`, `/api/status` and the
+  LuCI pages contain no device data.
+- **Protection against foreign web pages (CSRF):** `POST /api/rename` and
+  `/api/erase` only accept `Content-Type: application/json` with a matching
+  origin. Command line: `curl -H 'Content-Type: application/json' -d
+  '{"mac":"aa:bb:cc:dd:ee:ff"}' http://<host>:8765/api/erase`.
+- **MQTT:** only sums and radio values (clients per router, length of the
+  event log, channel utilization, neighbouring channels), no MAC addresses
+  or device names. Credentials do not appear in the process list; TLS is
+  possible and recommended for a broker outside the router/Pi.
+- **No access logs:** the web server does not log requests.
+
+### Known limitations
+
+- **No login:** anyone who can reach the port sees live which device is in
+  which room, and can rename devices or delete their data.
+- **Anonymous statistics:** kept indefinitely, traceable to individuals in
+  small households.
+- **Deleting a connected device:** `POST /api/erase` deletes the stored
+  data, but a device that is still connected is recorded again on the next
+  poll.
+- **Router access:** the service logs in to the routers via SSH as `root`.
+  Whoever has the key has the routers – keep the file readable by root only
+  (`chmod 600`).
+
+This chapter is not legal advice; the assessment depends on the individual
+case (context of use, people affected, national law).
+
 ## Quick start (OpenWrt, directly on a mesh router)
+
+Before using it, please read the chapter [Privacy notice (GDPR)](#privacy-notice-gdpr).
 
 **Important — first check which package manager the router uses**
 (`opkg --version` or `apk --version`): since OpenWrt 25.12, `apk`
@@ -447,6 +427,8 @@ LuCI or UCI, SSH keys, uninstalling), in German:
 [`docs/deployment-openwrt.md`](docs/deployment-openwrt.md).
 
 ## Quick start (Raspbian/Debian, e.g. alongside openHAB)
+
+Before using it, please read the chapter [Privacy notice (GDPR)](#privacy-notice-gdpr).
 
 See [`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md)
 (in German) for the full instructions (service user, configuration, SSH

@@ -2,6 +2,13 @@
 
 ## Mesh Roaming Dashboard
 
+### Dokumentation (nach 2.2)
+
+- README: Das Datenschutz-Kapitel steht jetzt als eigenes Kapitel nach
+  „Funktionsumfang“ und „Architektur“ statt direkt nach der Einleitung, in
+  sachlicherem Ton und auf dem Stand 2.2 (Messpunkte, Stationszeiten,
+  WLAN-Scan). Beide Schnellstart-Kapitel verweisen darauf.
+
 ### 2.2 (Pakete 2.2-r1)
 
 - **Nachbarkanäle: Anzahl und Auslastung getrennt** (Issue #15): Statt eines

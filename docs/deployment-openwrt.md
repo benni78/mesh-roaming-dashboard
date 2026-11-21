@@ -6,7 +6,7 @@
 > Nutzer dieses Netzwerks darstellen. Betrieb nur unter Beachtung
 > geltender Datenschutzvorschriften (insb. DSGVO) zulässig. Ausführliche
 > Erklärung: [`README.md`, Abschnitt „Datenschutz-Hinweis
-> (DSGVO)"](../README.md).
+> (DSGVO)"](../README.md#datenschutz-hinweis-dsgvo).
 
 Dieselbe Live-Karte wie in der
 [Raspbian/Debian-Variante](deployment-raspbian-openhab.md), aber als

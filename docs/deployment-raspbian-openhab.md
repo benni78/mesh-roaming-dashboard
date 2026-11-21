@@ -6,7 +6,7 @@
 > Nutzer dieses Netzwerks darstellen. Betrieb nur unter Beachtung
 > geltender Datenschutzvorschriften (insb. DSGVO) zulässig. Ausführliche
 > Erklärung: [`README.md`, Abschnitt „Datenschutz-Hinweis
-> (DSGVO)"](../README.md).
+> (DSGVO)"](../README.md#datenschutz-hinweis-dsgvo).
 
 Live-Karte aller Mesh-Router mit Roaming-Verfolgung, Ereignis-Log und
 Kanalauslastung – als eigener systemd-Dienst auf einem Raspberry Pi mit
