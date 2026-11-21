@@ -6,24 +6,25 @@
 
 Eine selbst gehostete Live-Karte für ein OpenWrt-Mesh-Netzwerk (usteer):
 zeigt auf einem Grundriss, an welchem Router jeder Client gerade hängt,
-Roaming-Verlauf, Signalstärke und Kanalauslastung je Funkband – im Browser,
-in Echtzeit. Keine Cloud, keine App, nur ein Python-Dienst, der die eigenen
-Router per SSH abfragt.
+Roaming-Verlauf, Signalstärke, Kanalauslastung je Funkband und die
+Belegung der Nachbarkanäle – im Browser, in Echtzeit. Keine Cloud, keine
+App, nur ein Python-Dienst, der die eigenen Router per SSH abfragt.
 
-Läuft als kleiner Python-3-Dienst (reine Standardbibliothek) – entweder auf
-einem Raspberry Pi (z. B. neben openHAB, siehe
-[`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md))
-oder direkt auf OpenWrt. Alles Netzwerkspezifische (Router, IPs, SSIDs,
-Kartenlayout, Schwellwerte) steckt in einer `config.json` – Dienst und
-Webseite bleiben für jedes Mesh identisch gleich. Das Format zeigt
-[`examples/config.example.json`](examples/config.example.json).
+Das Repository enthält diese Werkzeuge:
 
-Es gibt zwei Betriebsvarianten: Raspbian/Debian (gut neben openHAB, siehe
-oben) und direkt auf einem Mesh-Router statt auf einem separaten Pi, mit
-optionaler LuCI-Konfigurationsseite – siehe
-[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md) und den Ordner
-[`openwrt/`](openwrt). Die Dokumentation unter `docs/` und die
-Code-Kommentare sind auf Deutsch.
+| Werkzeug | Wofür | Ort |
+|---|---|---|
+| **Mesh Roaming Dashboard** (Dienst + Live-Seite) | Python-3-Dienst (reine Standardbibliothek) mit Weboberfläche: Grundriss-Karte mit Clients und Roaming-Pfeilen, Ereignis-Log, Kanalauslastung je Router, Nachbarkanäle aus dem WLAN-Scan (Spektrum mit Netznamen, Anzahl der Netze, gemessene Auslastung), optional MQTT | [`src/`](src) |
+| **OpenWrt-Pakete** `mesh-roaming` und `luci-app-mesh-roaming` | Dienst direkt auf einem Mesh-Router, mit LuCI-Konfigurationsseiten; fertig gebaut für `opkg` (bis 24.10) und `apk` (ab 25.12) | [`openwrt/`](openwrt), [`packages/`](packages), [Anleitung](docs/deployment-openwrt.md) |
+| **Raspberry-Pi-Variante** | derselbe Dienst als systemd-Unit, z. B. neben openHAB | [`systemd/`](systemd), [Anleitung](docs/deployment-raspbian-openhab.md) |
+| **WLAN-Analyzer** (Windows) | eigenständiges Windows-Programm: liest mit dem WLAN-Adapter des PCs alle Netze in Reichweite und zeigt Spektrum, Netze je Kanal, gemessene Auslastung und Verläufe – ohne Router-Zugang | [`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) |
+| **Build-Werkzeuge** | `build-ipk.sh` baut die `.ipk`-Pakete ohne OpenWrt-SDK, `build-apk.sh` wandelt sie mit dem übernommenen `openwrt-ipk2apk` (MIT-Lizenz) in `.apk` um | [`openwrt/`](openwrt), [`openwrt/tools/`](openwrt/tools) |
+
+Alles Netzwerkspezifische (Router, IPs, SSIDs, Kartenlayout, Schwellwerte)
+steckt in einer `config.json` bzw. in UCI/LuCI – Dienst und Webseite bleiben
+für jedes Mesh gleich. Das Format zeigt
+[`examples/config.example.json`](examples/config.example.json). Die
+Dokumentation unter `docs/` und die Code-Kommentare sind auf Deutsch.
 
 ![Beispiel-Ansicht des Dashboards mit vier Routern, Clients, Roaming-Log und Kanalauslastung](docs/images/dashboard-beispiel.png)
 
@@ -466,9 +467,10 @@ mitverteilt wird.
 
 [`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) enthält einen eigenständigen
 Windows-Client (C#, Visual Studio 2022 / .NET 8), der mit dem WLAN-Adapter
-des PCs alle Netze in Reichweite ausliest und Spektrum, Kanalauslastung
-(eigene vs. fremde Netze) und Signalverlauf anzeigt – ohne Router-Zugang
-und ohne InfluxDB. Details: [`tools/WlanAnalyzer/README.md`](tools/WlanAnalyzer/README.md).
+des PCs alle Netze in Reichweite ausliest und Spektrum, Anzahl der Netze je
+Kanal (eigene vs. fremde), die von Access Points gemeldete Auslastung sowie
+Signal- und Auslastungsverlauf anzeigt – ohne Router-Zugang und ohne
+InfluxDB. Details: [`tools/WlanAnalyzer/README.md`](tools/WlanAnalyzer/README.md).
 
 ## Lizenz
 

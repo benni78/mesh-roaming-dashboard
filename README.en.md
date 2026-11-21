@@ -6,25 +6,25 @@
 
 A self-hosted live dashboard for OpenWrt-based WiFi mesh networks (usteer):
 a floor-plan map showing which router each client is connected to, roaming
-history, signal strength and channel utilization per radio — in your
-browser, in real time. No cloud, no app, just one Python service that
-polls your own routers over SSH.
+history, signal strength, channel utilization per radio and the use of
+neighbouring channels — in your browser, in real time. No cloud, no app,
+just one Python service that polls your own routers over SSH.
 
-It runs as a small Python 3 service (standard library only), either on a
-Raspberry Pi (e.g. alongside openHAB, see
-[`docs/deployment-raspbian-openhab.md`](docs/deployment-raspbian-openhab.md))
-or directly on OpenWrt. Everything network-specific (routers, IPs, SSIDs,
-map layout, thresholds) lives in one `config.json` — the service and the
-web page stay the same for any mesh. See
+The repository contains these tools:
+
+| Tool | Purpose | Location |
+|---|---|---|
+| **Mesh Roaming Dashboard** (service + live page) | Python 3 service (standard library only) with a web page: floor-plan map with clients and roaming arrows, event log, channel utilization per router, neighbouring channels from the WiFi scan (spectrum with network names, number of networks, measured utilization), optional MQTT | [`src/`](src) |
+| **OpenWrt packages** `mesh-roaming` and `luci-app-mesh-roaming` | the service directly on a mesh router, with LuCI configuration pages; ready-built for `opkg` (up to 24.10) and `apk` (25.12+) | [`openwrt/`](openwrt), [`packages/`](packages), [guide](docs/deployment-openwrt.md) |
+| **Raspberry Pi variant** | the same service as a systemd unit, e.g. alongside openHAB | [`systemd/`](systemd), [guide](docs/deployment-raspbian-openhab.md) |
+| **WLAN Analyzer** (Windows) | standalone Windows program: reads all networks in range with the PC's WiFi adapter and shows spectrum, networks per channel, measured utilization and history – no router access needed | [`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) |
+| **Build tools** | `build-ipk.sh` builds the `.ipk` packages without the OpenWrt SDK, `build-apk.sh` converts them to `.apk` with the vendored `openwrt-ipk2apk` (MIT licence) | [`openwrt/`](openwrt), [`openwrt/tools/`](openwrt/tools) |
+
+Everything network-specific (routers, IPs, SSIDs, map layout, thresholds)
+lives in one `config.json` or in UCI/LuCI — the service and the web page
+stay the same for any mesh. See
 [`examples/config.example.json`](examples/config.example.json) for the
-format.
-
-There are two deployment variants: Raspbian/Debian (works well alongside
-openHAB, see above) and directly on a mesh router instead of a separate Pi,
-with an optional LuCI configuration page — see
-[`docs/deployment-openwrt.md`](docs/deployment-openwrt.md) and the
-[`openwrt/`](openwrt) directory. The documentation in `docs/` and the code
-comments are in German.
+format. The documentation in `docs/` and the code comments are in German.
 
 ![Example view of the dashboard with four routers, clients, roaming log and channel utilization](docs/images/dashboard-beispiel.png)
 
@@ -457,9 +457,10 @@ commercial firmware images.
 
 [`tools/WlanAnalyzer/`](tools/WlanAnalyzer/) contains a standalone Windows
 client (C#, Visual Studio 2022 / .NET 8) that uses the PC's own WiFi adapter
-to read all networks in range and shows the spectrum, channel utilization
-(own vs. foreign networks) and signal history — without router access and
-without InfluxDB. Details (in German):
+to read all networks in range and shows the spectrum, the number of
+networks per channel (own vs. foreign), the utilization reported by access
+points and signal/utilization history — without router access and without
+InfluxDB. Details (in German):
 [`tools/WlanAnalyzer/README.md`](tools/WlanAnalyzer/README.md).
 
 ## License
